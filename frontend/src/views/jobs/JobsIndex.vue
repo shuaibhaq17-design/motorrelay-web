@@ -195,7 +195,7 @@ watch(tab, loadJobs);
           </RouterLink>
 
           <button
-            v-if="tab === 'available'"
+            v-if="tab === 'available' && !auth.isDealer"
             type="button"
             class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
             @click.stop="handleAction(job, 'accept')"
