@@ -1,7 +1,7 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import { fetchJob, mutateJob } from '@/services/jobs';
+import { fetchJob } from '@/services/jobs';
 import { useAuthStore } from '@/stores/auth';
 
 const route = useRoute();
@@ -34,17 +34,6 @@ async function loadJob() {
   }
 }
 
-async function handle(action) {
-  if (!job.value) return;
-  try {
-    await mutateJob(job.value.id, action);
-    await loadJob();
-  } catch (error) {
-    console.error('Failed to update job', error);
-    alert('Unable to update job at this time.');
-  }
-}
-
 onMounted(async () => {
   if (!auth.user && auth.token) {
     await auth.fetchMe().catch(() => null);
@@ -58,6 +47,34 @@ watch(
     loadJob();
   }
 );
+
+const assignedDriver = computed(() => job.value?.assigned_to ?? null);
+const statusDescription = computed(() => {
+  if (!job.value) return '';
+  if (job.value.status === 'open') {
+    return 'This job is open and awaiting acceptance by a driver.';
+  }
+
+  if (job.value.status === 'accepted' || job.value.status === 'collected' || job.value.status === 'in_transit') {
+    if (assignedDriver.value) {
+      return `This job has been accepted by ${assignedDriver.value.name}.`;
+    }
+    return 'This job has been accepted by a driver.';
+  }
+
+  if (job.value.status === 'delivered' || job.value.status === 'completed') {
+    if (assignedDriver.value) {
+      return `This job was completed by ${assignedDriver.value.name}.`;
+    }
+    return 'This job has been completed.';
+  }
+
+  if (job.value.status === 'cancelled') {
+    return 'This job has been cancelled.';
+  }
+
+  return `This job status is ${job.value.status}.`;
+});
 </script>
 
 <template>
@@ -134,45 +151,28 @@ watch(
       </section>
 
       <section class="tile p-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Actions</h2>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Status</h2>
 
         <p class="mt-2 text-sm text-slate-600">
-          Update this job as you progress. These actions mirror the original workflow from the Supabase build.
+          {{ statusDescription }}
         </p>
 
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button
-            v-if="job.status === 'open'"
-            type="button"
-            class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            @click="handle('accept')"
+        <div class="mt-4 space-y-2">
+          <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="job-driver-select">
+            Assigned driver
+          </label>
+          <select
+            id="job-driver-select"
+            class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700"
+            disabled
           >
-            Accept job
-          </button>
-          <button
-            v-if="job.status === 'accepted'"
-            type="button"
-            class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
-            @click="handle('collected')"
-          >
-            Mark collected
-          </button>
-          <button
-            v-if="job.status === 'in_transit' || job.status === 'collected'"
-            type="button"
-            class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            @click="handle('delivered')"
-          >
-            Mark delivered
-          </button>
-          <button
-            v-if="job.status !== 'cancelled' && job.status !== 'delivered'"
-            type="button"
-            class="rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-            @click="handle('cancel')"
-          >
-            Cancel job
-          </button>
+            <option v-if="assignedDriver" :value="assignedDriver.id">
+              {{ assignedDriver.name }} ({{ assignedDriver.email }})
+            </option>
+            <option v-else value="unassigned">
+              No driver assigned
+            </option>
+          </select>
         </div>
       </section>
     </div>
