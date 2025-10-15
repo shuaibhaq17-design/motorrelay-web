@@ -1,0 +1,155 @@
+// app/jobs/[id]/page.js
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useParams } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
+
+export default function JobDetailPage() {
+  // ✅ Read-only route params (client-safe). Do NOT mutate this object.
+  const routeParams = useParams();
+  const id = decodeURIComponent(String(routeParams?.id || ''));
+
+  const router = useRouter();
+
+  const [job, setJob] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const fmtGBP = useMemo(
+    () => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }),
+    []
+  );
+
+  // Create a plain Supabase client for client-side fetching
+  const sb = () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) throw new Error('Missing Supabase env vars');
+    return createClient(url, key);
+    // Note: this is fine for public data guarded by RLS.
+  };
+
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await sb().from('jobs').select('*').eq('id', id).single();
+        if (error) throw error;
+        setJob(data);
+        setErr(null);
+      } catch (e) {
+        setErr(e.message || String(e));
+        setJob(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
+
+  async function handleDelete() {
+    if (!confirm('Are you sure you want to delete this job? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      const { error } = await sb().from('jobs').delete().eq('id', id);
+      if (error) throw error;
+      router.push('/jobs');
+    } catch (e) {
+      alert('Error deleting job: ' + (e.message || e));
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <main className="min-h-dvh bg-gray-50 text-gray-900">
+      <header className="border-b bg-white">
+        <div className="mx-auto w-full max-w-3xl p-5 flex items-center justify-between">
+          <Link href="/jobs" className="text-sm text-emerald-700 hover:underline">
+            ← Back to Jobs
+          </Link>
+          <Link
+            href="/create-job"
+            className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 transition"
+          >
+            + Create Job
+          </Link>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-3xl p-5">
+        {loading && <div className="rounded-xl border bg-white p-4">Loading job…</div>}
+
+        {err && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+            ⚠️ {err}
+          </div>
+        )}
+
+        {!loading && !err && !job && (
+          <div className="rounded-xl border bg-white p-6">
+            <h1 className="text-xl font-semibold">Job not found</h1>
+            <p className="mt-1 text-gray-600">This job may have been deleted or the link is invalid.</p>
+            <Link href="/jobs" className="mt-4 inline-block rounded-xl border px-4 py-2 hover:bg-gray-50">
+              Back to jobs
+            </Link>
+          </div>
+        )}
+
+        {!loading && !err && job && (
+          <article className="rounded-2xl border bg-white p-6 shadow">
+            <h1 className="text-2xl font-semibold">{job.title}</h1>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-gray-500">Vehicle</p>
+                <p className="mt-1 font-medium">{job.vehicle_make}</p>
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-gray-500">Price</p>
+                <p className="mt-1 font-medium">{fmtGBP.format(Number(job.price || 0))}</p>
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-gray-500">Pickup → Drop-off</p>
+                <p className="mt-1 font-medium">
+                  {job.pickup_postcode} <span className="text-gray-400">→</span> {job.dropoff_postcode}
+                </p>
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-gray-500">Transport type</p>
+                <p className="mt-2">
+                  <span
+                    className={[
+                      'inline-block rounded-md border px-2 py-1 text-xs',
+                      job.transport_type === 'trailer'
+                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                    ].join(' ')}
+                  >
+                    {job.transport_type === 'trailer' ? 'Trailer' : 'Drive-away'}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-gray-500">
+              Created {job.created_at ? new Date(job.created_at).toLocaleString() : '—'}
+            </p>
+
+            <div className="mt-6">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete Job'}
+              </button>
+            </div>
+          </article>
+        )}
+      </div>
+    </main>
+  );
+}
