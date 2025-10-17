@@ -8,7 +8,7 @@
 
         <div class="hidden items-center gap-4 text-sm font-semibold text-slate-600 md:flex">
           <RouterLink
-            v-for="item in navLinks"
+            v-for="item in visibleNavLinks"
             :key="item.to"
             :to="item.to"
             class="rounded-xl px-3 py-2 hover:bg-emerald-50 hover:text-emerald-700"
@@ -19,11 +19,20 @@
         </div>
 
         <RouterLink
+          v-if="showLogin"
           to="/login"
           class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           Login
         </RouterLink>
+        <button
+          v-else
+          type="button"
+          class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          @click="handleLogout"
+        >
+          Logout
+        </button>
       </nav>
     </header>
 
@@ -34,6 +43,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+
+const auth = useAuthStore();
+const router = useRouter();
+
 const navLinks = [
   { to: '/jobs', label: 'Jobs' },
   { to: '/messages', label: 'Messages' },
@@ -41,4 +57,12 @@ const navLinks = [
   { to: '/invoices', label: 'Invoices' },
   { to: '/profile', label: 'Profile' }
 ];
+
+const visibleNavLinks = computed(() => (auth.isAuthenticated ? navLinks : []));
+const showLogin = computed(() => !auth.isAuthenticated);
+
+async function handleLogout() {
+  await auth.logout();
+  router.push({ name: 'login' });
+}
 </script>

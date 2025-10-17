@@ -6,12 +6,18 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     plan: null,
     token: null,
+    jobs: {
+      assigned: [],
+      posted: []
+    },
     loading: false,
     initialized: false
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.user),
     role: (state) => state.user?.role ?? null,
+    assignedJobs: (state) => state.jobs?.assigned ?? [],
+    postedJobs: (state) => state.jobs?.posted ?? [],
     isDealer() {
       return this.role === 'dealer';
     },
@@ -23,21 +29,27 @@ export const useAuthStore = defineStore('auth', {
     }
   },
   actions: {
-    initialize() {
-      if (this.initialized) return;
+    async initialize() {
+      if (this.initialized) {
+        return;
+      }
       this.initialized = true;
       if (typeof window !== 'undefined') {
         const storedToken = window.localStorage.getItem('mr_auth_token');
         if (storedToken) {
           this.token = storedToken;
-          this.fetchMe().catch(() => this.clearSession());
+          await this.fetchMe();
         }
       }
     },
-    setSession({ token, user, plan }) {
+    setSession({ token, user, plan, jobs }) {
       this.token = token || null;
       this.user = user || null;
       this.plan = plan || null;
+      this.jobs = {
+        assigned: Array.isArray(jobs?.assigned) ? jobs.assigned : [],
+        posted: Array.isArray(jobs?.posted) ? jobs.posted : []
+      };
       if (typeof window !== 'undefined') {
         if (token) {
           window.localStorage.setItem('mr_auth_token', token);
@@ -57,9 +69,13 @@ export const useAuthStore = defineStore('auth', {
 
       this.loading = true;
       try {
-        const { data } = await api.get('/auth/me');
+        const { data } = await api.get('/profile');
         this.user = data?.user ?? null;
         this.plan = data?.plan ?? null;
+        this.jobs = {
+          assigned: Array.isArray(data?.jobs?.assigned) ? data.jobs.assigned : [],
+          posted: Array.isArray(data?.jobs?.posted) ? data.jobs.posted : []
+        };
       } catch (error) {
         console.error('Failed to fetch auth profile', error);
         this.clearSession();

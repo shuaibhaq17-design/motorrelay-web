@@ -6,9 +6,39 @@ import './styles/tailwind.css';
 import { useAuthStore } from './stores/auth';
 
 const app = createApp(App);
-app.use(createPinia());
+const pinia = createPinia();
+app.use(pinia);
+
+const auth = useAuthStore(pinia);
+const initialization = auth.initialize();
+const publicRoutes = new Set(['login']);
+
+router.beforeEach(async (to, from, next) => {
+  await initialization;
+
+  if (auth.token && !auth.user && !auth.loading) {
+    await auth.fetchMe();
+  }
+
+  const isPublic = publicRoutes.has(to.name);
+
+  if (!auth.isAuthenticated && !isPublic) {
+    const redirectPath = to.fullPath !== '/login' ? to.fullPath : undefined;
+    next(
+      redirectPath
+        ? { name: 'login', query: { redirect: redirectPath } }
+        : { name: 'login' }
+    );
+    return;
+  }
+
+  if (auth.isAuthenticated && to.name === 'login') {
+    next({ name: 'home' });
+    return;
+  }
+
+  next();
+});
+
 app.use(router);
 app.mount('#app');
-
-const auth = useAuthStore();
-auth.initialize();

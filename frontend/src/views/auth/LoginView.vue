@@ -2,9 +2,10 @@
 import { reactive, ref } from 'vue';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
-import { RouterLink, useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 
 const form = reactive({
@@ -23,9 +24,15 @@ async function submit() {
     auth.setSession({
       token: data?.token || null,
       user: data?.user || null,
-      plan: data?.plan || null
+      plan: data?.plan || null,
+      jobs: data?.jobs ?? undefined
     });
-    router.push('/');
+    await auth.fetchMe();
+    const redirectTarget =
+      typeof route.query.redirect === 'string' && route.query.redirect
+        ? route.query.redirect
+        : '/';
+    router.replace(redirectTarget);
   } catch (error) {
     console.error('Login failed', error);
     errorMessage.value = error.response?.data?.message || 'Login failed. Check your credentials.';
@@ -41,6 +48,9 @@ async function submit() {
       <h1 class="text-2xl font-bold text-slate-900">Log in</h1>
       <p class="text-sm text-slate-600">
         Access your MotorRelay account to manage jobs and messaging.
+      </p>
+      <p class="mt-2 text-xs text-slate-500">
+        A valid login is required to view the dashboard, planner, and profiles. If you do not have access, contact your MotorRelay admin.
       </p>
     </header>
 
@@ -74,16 +84,11 @@ async function submit() {
         class="w-full rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         :disabled="submitting"
       >
-        <span v-if="submitting">Signing in…</span>
+        <span v-if="submitting">Signing in...</span>
         <span v-else>Sign in</span>
       </button>
     </form>
-
-    <p class="text-sm text-slate-600">
-      New to MotorRelay?
-      <RouterLink to="/signup" class="font-semibold text-emerald-600 hover:underline">
-        Create your account
-      </RouterLink>
-    </p>
   </div>
 </template>
+
+
