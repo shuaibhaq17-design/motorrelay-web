@@ -1,55 +1,29 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { fetchJobs, mutateJob } from '@/services/jobs';
+import { fetchJobs, applyForJob } from '@/services/jobs';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
 const router = useRouter();
 
-const tab = ref('available');
 const jobs = ref([]);
 const loading = ref(false);
 const errorMessage = ref('');
+const appliedJobIds = ref(new Set());
 
-const fallbackJobs = {
-  available: [
-    {
-      id: 'demo-1',
-      price: 72,
-      status: 'open',
-      company: 'Acme Motors',
-      vehicle_make: 'Ford Fiesta',
-      distance_mi: 12,
-      pickup_postcode: 'NW1',
-      dropoff_postcode: 'CR0'
-    }
-  ],
-  current: [
-    {
-      id: 'demo-2',
-      price: 105,
-      status: 'in_transit',
-      company: 'City Cars',
-      vehicle_make: 'BMW 1 Series',
-      distance_mi: 46,
-      pickup_postcode: 'SW1',
-      dropoff_postcode: 'CB1'
-    }
-  ],
-  completed: [
-    {
-      id: 'demo-3',
-      price: 88,
-      status: 'delivered',
-      company: 'Midlands Auto',
-      vehicle_make: 'Audi A3',
-      distance_mi: 30,
-      pickup_postcode: 'B1',
-      dropoff_postcode: 'LE1'
-    }
-  ]
-};
+const fallbackJobs = [
+  {
+    id: 'demo-1',
+    price: 72,
+    status: 'open',
+    company: 'Acme Motors',
+    vehicle_make: 'Ford Fiesta',
+    distance_mi: 12,
+    pickup_postcode: 'NW1',
+    dropoff_postcode: 'CR0'
+  }
+];
 
 const priceFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
@@ -61,27 +35,37 @@ async function loadJobs() {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const payload = await fetchJobs({ scope: tab.value });
-    jobs.value = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.jobs) ? payload.jobs : [];
+    const payload = await fetchJobs({ scope: 'available' });
+    const rawJobs = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.jobs) ? payload.jobs : [];
+    jobs.value = rawJobs.filter((job) => String(job.status || '').toLowerCase() === 'open');
     if (!jobs.value.length) {
-      jobs.value = fallbackJobs[tab.value] ?? [];
+      jobs.value = fallbackJobs;
+    }
+
+    if (auth.role === 'driver') {
+      const appliedIds = jobs.value
+        .filter((job) => job.my_application && job.my_application.status !== 'declined')
+        .map((job) => job.id);
+      appliedJobIds.value = new Set(appliedIds);
     }
   } catch (error) {
     console.error('Failed to load jobs', error);
     errorMessage.value = 'Unable to load jobs. Showing sample data.';
-    jobs.value = fallbackJobs[tab.value] ?? [];
+    jobs.value = fallbackJobs;
   } finally {
     loading.value = false;
   }
 }
 
-async function handleAction(job, action) {
+async function handleApply(job) {
+  if (appliedJobIds.value.has(job.id)) return;
+
   try {
-    await mutateJob(job.id, action);
-    await loadJobs();
+    await applyForJob(job.id);
+    appliedJobIds.value = new Set([...appliedJobIds.value, job.id]);
   } catch (error) {
-    console.error('Job mutation failed', error);
-    alert('We could not update this job. Please try again.');
+    console.error('Job application failed', error);
+    alert(error.response?.data?.message || 'We could not submit your application. Please try again.');
   }
 }
 
@@ -90,12 +74,10 @@ function openJob(job) {
 }
 
 const visibleJobs = computed(() => jobs.value ?? []);
-
-const tabs = [
-  { key: 'available', label: 'Available' },
-  { key: 'current', label: 'Current' },
-  { key: 'completed', label: 'Completed' }
-];
+const isDriver = computed(() => auth.role === 'driver');
+function hasApplied(jobId) {
+  return appliedJobIds.value.has(jobId);
+}
 
 onMounted(async () => {
   if (!auth.user && auth.token) {
@@ -103,8 +85,6 @@ onMounted(async () => {
   }
   await loadJobs();
 });
-
-watch(tab, loadJobs);
 </script>
 
 <template>
@@ -131,19 +111,6 @@ watch(tab, loadJobs);
         >
           Planner
         </RouterLink>
-
-        <div class="inline-flex overflow-hidden rounded-2xl border border-slate-200">
-          <button
-            v-for="item in tabs"
-            :key="item.key"
-            type="button"
-            class="px-3 py-2 text-sm font-semibold transition"
-            :class="tab === item.key ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
-            @click="tab = item.key"
-          >
-            {{ item.label }}
-          </button>
-        </div>
       </div>
     </div>
 
@@ -171,11 +138,10 @@ watch(tab, loadJobs);
               {{ priceFormatter.format(Number(job.price ?? 0)) }}
             </div>
             <p class="text-sm text-slate-600">
-              {{ job.company || 'Customer' }} · {{ job.vehicle_make || 'Vehicle' }} ·
-              {{ job.distance_mi || '—' }} mi
+              {{ job.company || 'Customer' }} - {{ job.vehicle_make || 'Vehicle' }} - {{ job.distance_mi ?? '--' }} mi
             </p>
             <p class="text-xs text-slate-500">
-              {{ job.pickup_postcode || '??' }} → {{ job.dropoff_postcode || '??' }}
+              {{ job.pickup_postcode || '??' }} -> {{ job.dropoff_postcode || '??' }}
             </p>
           </div>
           <span
@@ -186,59 +152,24 @@ watch(tab, loadJobs);
         </div>
 
         <div class="mt-3 flex flex-wrap gap-2">
-          <RouterLink
-            v-if="tab === 'current' || tab === 'completed'"
-            :to="{ name: 'job-detail', params: { id: job.id } }"
-            class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
-          >
-            Open
-          </RouterLink>
-
           <button
-            v-if="tab === 'available' && !auth.isDealer"
+            v-if="isDriver"
             type="button"
-            class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            @click.stop="handleAction(job, 'accept')"
+            class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            :disabled="hasApplied(job.id)"
+            @click.stop="handleApply(job)"
           >
-            Pick this job
+            <span v-if="hasApplied(job.id)">Application sent</span>
+            <span v-else>Request this job</span>
           </button>
-
-          <button
-            v-if="tab === 'current'"
-            type="button"
-            class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
-            @click.stop="handleAction(job, 'collected')"
-          >
-            Collected
-          </button>
-
-          <button
-            v-if="tab === 'current'"
-            type="button"
-            class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            @click.stop="handleAction(job, 'delivered')"
-          >
-            Job completed
-          </button>
-
-          <button
-            v-if="tab === 'current'"
-            type="button"
-            class="rounded-xl border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-            @click.stop="handleAction(job, 'cancel')"
-          >
-            Cancel
-          </button>
-
-          <RouterLink
-            v-if="tab === 'completed'"
-            :to="`/invoices/from-job/${job.id}`"
-            class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
-          >
-            View invoice
-          </RouterLink>
         </div>
       </button>
     </div>
   </div>
 </template>
+
+
+
+
+
+

@@ -57,12 +57,23 @@ class UserProfileController extends Controller
                 ->get();
         }
 
+        $completedStatuses = ['completed', 'closed', 'delivered'];
+        $completedJobs = $assignedJobs
+            ->merge($postedJobs)
+            ->filter(function ($job) use ($completedStatuses) {
+                $status = strtolower((string) ($job->status ?? ''));
+                return in_array($status, $completedStatuses, true);
+            })
+            ->sortByDesc('created_at')
+            ->values();
+
         return response()->json([
             'user' => $user,
             'plan' => $user->plan,
             'jobs' => [
                 'assigned' => $assignedJobs->values(),
-                'posted' => $postedJobs->values()
+                'posted' => $postedJobs->values(),
+                'completed' => $completedJobs
             ]
         ]);
     }

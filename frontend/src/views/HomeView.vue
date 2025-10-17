@@ -18,14 +18,6 @@ const demoJobs = [
   { id: 'demo-3', price: 120, pickup_label: 'Leeds', dropoff_label: 'Bradford' }
 ];
 
-const quickLinks = [
-  { to: '/jobs', label: 'Jobs' },
-  { to: '/messages', label: 'Messages' },
-  { to: '/planner', label: 'Planner' },
-  { to: '/invoices', label: 'Invoices' },
-  { to: '/profile', label: 'Profile' }
-];
-
 const auth = useAuthStore();
 const jobs = ref([]);
 const loading = ref(false);
@@ -55,13 +47,6 @@ const priceFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
   currency: 'GBP',
   maximumFractionDigits: 0
-});
-
-const filteredQuickLinks = computed(() => {
-  return quickLinks.filter((item) => {
-    if (item.to !== '/planner') return true;
-    return auth.hasPlannerAccess;
-  });
 });
 </script>
 
@@ -174,17 +159,6 @@ const filteredQuickLinks = computed(() => {
           </ul>
         </div>
       </aside>
-    </section>
-
-    <section class="grid gap-3 md:grid-cols-4">
-      <RouterLink
-        v-for="item in filteredQuickLinks"
-        :key="item.to"
-        :to="item.to"
-        class="tile rounded-2xl border bg-white px-4 py-3 text-left font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-      >
-        {{ item.label }}
-      </RouterLink>
     </section>
   </div>
 </template>

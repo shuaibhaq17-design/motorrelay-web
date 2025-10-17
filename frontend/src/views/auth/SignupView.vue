@@ -11,7 +11,8 @@ const form = reactive({
   name: '',
   email: '',
   password: '',
-  role: 'driver'
+  role: 'driver',
+  plan: 'bronze'
 });
 
 const submitting = ref(false);
@@ -87,6 +88,21 @@ async function submit() {
         </select>
       </div>
 
+      <div>
+        <label class="text-sm font-semibold text-slate-700">Membership plan</label>
+        <select
+          v-model="form.plan"
+          class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+        >
+          <option value="bronze">Bronze</option>
+          <option value="silver">Silver</option>
+          <option value="gold">Gold</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-500">
+          Bronze covers the basics, Silver adds extra support, and Gold unlocks full driver benefits.
+        </p>
+      </div>
+
       <p v-if="errorMessage" class="text-sm text-red-600">{{ errorMessage }}</p>
 
       <button
@@ -94,7 +110,7 @@ async function submit() {
         class="w-full rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         :disabled="submitting"
       >
-        <span v-if="submitting">Creating account…</span>
+        <span v-if="submitting">Creating account...</span>
         <span v-else>Sign up</span>
       </button>
     </form>

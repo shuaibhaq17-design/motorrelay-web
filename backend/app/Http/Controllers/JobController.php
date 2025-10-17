@@ -31,12 +31,18 @@ class JobController extends Controller
 
         if ($user) {
             $query->visibleTo($user);
+
+            if ($user->isDriver()) {
+                $query->with(['applications' => function ($builder) use ($user) {
+                    $builder->where('driver_id', $user->id);
+                }]);
+            }
         }
 
         if ($scope === 'available') {
             $query->where('status', 'open')->whereNull('assigned_to_id');
         } elseif ($scope === 'current') {
-            $query->whereIn('status', ['accepted', 'collected', 'in_transit', 'pending'])
+            $query->whereIn('status', ['in_progress', 'accepted', 'collected', 'in_transit', 'pending'])
                 ->when(!$user?->isAdmin(), function ($inner) use ($user) {
                     $inner->where(function ($child) use ($user) {
                         $child->where('assigned_to_id', $user->id)
@@ -44,7 +50,7 @@ class JobController extends Controller
                     });
                 });
         } elseif ($scope === 'completed') {
-            $query->whereIn('status', ['completed', 'delivered', 'cancelled'])
+            $query->whereIn('status', ['completed', 'delivered', 'cancelled', 'closed'])
                 ->when(!$user?->isAdmin(), function ($inner) use ($user) {
                     $inner->where(function ($child) use ($user) {
                         $child->where('assigned_to_id', $user->id)
@@ -70,6 +76,15 @@ class JobController extends Controller
         $jobs = $query
             ->orderByDesc('created_at')
             ->paginate($request->integer('per_page', 15));
+
+        if ($user && $user->isDriver()) {
+            $jobs->getCollection()->transform(function (Job $jobItem) use ($user) {
+                $application = $jobItem->applications->first();
+                $jobItem->setRelation('my_application', $application);
+                $jobItem->unsetRelation('applications');
+                return $jobItem;
+            });
+        }
 
         return response()->json($jobs);
     }
@@ -106,9 +121,32 @@ class JobController extends Controller
         return response()->json($job, 201);
     }
 
-    public function show(Job $job): JsonResponse
+    public function show(Request $request, Job $job): JsonResponse
     {
+        $user = $request->user();
+
         $job->load(['postedBy:id,name,email', 'assignedTo:id,name,email']);
+
+        if ($user) {
+            if ($user->isAdmin() || $job->posted_by_id === $user->id) {
+                $job->setRelation(
+                    'applications',
+                    $job->applications()
+                        ->with(['driver:id,name,email'])
+                        ->orderByRaw("FIELD(status, 'pending', 'accepted', 'declined')")
+                        ->latest()
+                        ->get()
+                );
+            } elseif ($user->isDriver()) {
+                $job->setRelation(
+                    'my_application',
+                    $job->applications()
+                        ->where('driver_id', $user->id)
+                        ->first()
+                );
+            }
+        }
+
         return response()->json($job);
     }
 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MessageThread extends Model
@@ -12,8 +13,14 @@ class MessageThread extends Model
     use HasFactory;
 
     protected $fillable = [
-        'subject'
+        'subject',
+        'job_id'
     ];
+
+    public function job(): BelongsTo
+    {
+        return $this->belongsTo(Job::class);
+    }
 
     public function participants(): BelongsToMany
     {

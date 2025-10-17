@@ -8,7 +8,8 @@ export const useAuthStore = defineStore('auth', {
     token: null,
     jobs: {
       assigned: [],
-      posted: []
+      posted: [],
+      completed: []
     },
     loading: false,
     initialized: false
@@ -18,6 +19,7 @@ export const useAuthStore = defineStore('auth', {
     role: (state) => state.user?.role ?? null,
     assignedJobs: (state) => state.jobs?.assigned ?? [],
     postedJobs: (state) => state.jobs?.posted ?? [],
+    completedJobs: (state) => state.jobs?.completed ?? [],
     isDealer() {
       return this.role === 'dealer';
     },
@@ -48,7 +50,8 @@ export const useAuthStore = defineStore('auth', {
       this.plan = plan || null;
       this.jobs = {
         assigned: Array.isArray(jobs?.assigned) ? jobs.assigned : [],
-        posted: Array.isArray(jobs?.posted) ? jobs.posted : []
+        posted: Array.isArray(jobs?.posted) ? jobs.posted : [],
+        completed: Array.isArray(jobs?.completed) ? jobs.completed : []
       };
       if (typeof window !== 'undefined') {
         if (token) {
@@ -74,7 +77,8 @@ export const useAuthStore = defineStore('auth', {
         this.plan = data?.plan ?? null;
         this.jobs = {
           assigned: Array.isArray(data?.jobs?.assigned) ? data.jobs.assigned : [],
-          posted: Array.isArray(data?.jobs?.posted) ? data.jobs.posted : []
+          posted: Array.isArray(data?.jobs?.posted) ? data.jobs.posted : [],
+          completed: Array.isArray(data?.jobs?.completed) ? data.jobs.completed : []
         };
       } catch (error) {
         console.error('Failed to fetch auth profile', error);

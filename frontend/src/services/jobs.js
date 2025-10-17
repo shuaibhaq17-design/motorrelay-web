@@ -19,3 +19,23 @@ export async function mutateJob(jobId, action) {
   const { data } = await api.post(`/jobs/${jobId}/${action}`);
   return data;
 }
+
+export async function applyForJob(jobId, payload = {}) {
+  const { data } = await api.post(`/jobs/${jobId}/applications`, payload);
+  return data;
+}
+
+export async function fetchJobApplications(jobId) {
+  const { data } = await api.get(`/jobs/${jobId}/applications`);
+  return data;
+}
+
+export async function updateJobApplication(jobId, applicationId, payload) {
+  const { data } = await api.patch(`/jobs/${jobId}/applications/${applicationId}`, payload);
+  return data;
+}
+
+export async function fetchDriverOverview() {
+  const { data } = await api.get('/driver/overview');
+  return data;
+}

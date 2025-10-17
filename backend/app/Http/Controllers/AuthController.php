@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -17,6 +18,7 @@ class AuthController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', Password::defaults()],
             'role' => ['required', 'in:driver,dealer,admin'],
+            'plan' => ['required', Rule::in(['bronze', 'silver', 'gold'])],
         ]);
 
         $user = User::create([
@@ -24,7 +26,7 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
-            'plan' => $validated['role'] === 'driver' ? 'free' : 'dealer'
+            'plan' => $validated['plan']
         ]);
 
         $token = $user->createToken('motorrelay')->plainTextToken;

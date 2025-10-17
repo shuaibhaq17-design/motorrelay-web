@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
-import { useRouter, useRoute } from 'vue-router';
+import { RouterLink, useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
 const route = useRoute();
@@ -88,6 +88,13 @@ async function submit() {
         <span v-else>Sign in</span>
       </button>
     </form>
+
+    <p class="text-sm text-slate-600">
+      New to MotorRelay?
+      <RouterLink to="/signup" class="font-semibold text-emerald-600 hover:underline">
+        Create an account
+      </RouterLink>
+    </p>
   </div>
 </template>
 

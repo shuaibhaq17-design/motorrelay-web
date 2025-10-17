@@ -11,7 +11,7 @@ app.use(pinia);
 
 const auth = useAuthStore(pinia);
 const initialization = auth.initialize();
-const publicRoutes = new Set(['login']);
+const publicRoutes = new Set(['login', 'signup']);
 
 router.beforeEach(async (to, from, next) => {
   await initialization;
@@ -33,6 +33,12 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (auth.isAuthenticated && to.name === 'login') {
+    next({ name: 'home' });
+    return;
+  }
+
+  const requiredRole = to.meta?.requiresRole;
+  if (requiredRole && auth.role !== requiredRole) {
     next({ name: 'home' });
     return;
   }

@@ -51,13 +51,17 @@ const isLoading = computed(() => auth.loading && Boolean(auth.token));
 const metrics = computed(() => calculateMetrics(dataset.value));
 const formattedRevenue = computed(() => currencyFormatter.format(metrics.value.totalRevenue));
 const formattedAverage = computed(() => currencyFormatter.format(metrics.value.avgPrice));
-const hasJobs = computed(() => dataset.value.length > 0);
-const recentJobs = computed(() => dataset.value.slice(0, 5));
+const completedList = computed(() => {
+  const statuses = new Set(['completed', 'closed']);
+  return dataset.value.filter((job) => statuses.has(String(job.status || '').toLowerCase()));
+});
+const hasJobs = computed(() => completedList.value.length > 0);
+const recentJobs = computed(() => completedList.value.slice(0, 5));
 const recentJobCount = computed(() => recentJobs.value.length);
 
 function calculateMetrics(jobs) {
-  const currentStatuses = new Set(['accepted', 'collected', 'in_transit', 'pending']);
-  const completedStatuses = new Set(['completed', 'delivered']);
+  const currentStatuses = new Set(['accepted', 'collected', 'in_transit', 'pending', 'in_progress']);
+  const completedStatuses = new Set(['completed', 'delivered', 'closed']);
   const cancelledStatus = 'cancelled';
 
   const summary = {
