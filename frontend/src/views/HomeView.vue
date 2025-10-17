@@ -78,7 +78,7 @@ const filteredQuickLinks = computed(() => {
           <div class="mt-4 flex flex-wrap gap-3">
             <RouterLink
               to="/jobs"
-              class="tile inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-white shadow-sm hover:bg-emerald-600"
+              class="tile inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-emerald-700 shadow-sm hover:bg-slate-50"
             >
               Find Jobs
             </RouterLink>
