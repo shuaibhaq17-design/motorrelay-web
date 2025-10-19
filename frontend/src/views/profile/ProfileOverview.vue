@@ -6,6 +6,8 @@ import ProfileScorecard from './ProfileScorecard.vue';
 
 const auth = useAuthStore();
 
+const isDriver = computed(() => auth.role === 'driver');
+
 const initials = computed(() => {
   if (!auth.user?.name) return 'MR';
   return auth.user.name
@@ -57,38 +59,25 @@ function formatDate(value) {
   }
 }
 
-const profileLinks = [
-  {
-    to: '/scorecard',
-    title: 'Scorecard',
-    description: 'View rating, jobs, and reviews'
-  },
-  {
-    to: '/profile/jobs',
-    title: 'Jobs',
-    description: 'All completed jobs & invoices'
-  },
-  {
-    to: '/invoices',
-    title: 'Invoice builder',
-    description: 'Create standalone invoices'
-  },
-  {
-    to: '/account',
-    title: 'Account settings',
-    description: 'Manage your details'
-  },
-  {
-    to: '/legal',
-    title: 'Legal',
-    description: 'GDPR, Terms, Licensing'
-  },
-  {
-    to: '/plans',
-    title: 'Membership',
-    description: 'Pick a plan and manage benefits'
-  }
-];
+const profileLinks = computed(() => {
+  return [
+    {
+      to: '/invoices',
+      title: 'Invoice builder',
+      description: 'Create standalone invoices'
+    },
+    {
+      to: '/account',
+      title: 'Account settings',
+      description: 'Manage your details'
+    },
+    {
+      to: '/legal',
+      title: 'Legal',
+      description: 'GDPR, Terms, Licensing'
+    }
+  ];
+});
 </script>
 
 <template>
@@ -125,7 +114,7 @@ const profileLinks = [
         </div>
       </section>
 
-      <ProfileScorecard />
+      <ProfileScorecard v-if="!isDriver" />
       <section class="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 class="text-lg font-semibold text-slate-900">Profile</h2>
         <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -210,6 +199,5 @@ const profileLinks = [
     </aside>
   </div>
 </template>
-
 
 
