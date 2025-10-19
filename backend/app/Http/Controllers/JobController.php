@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Job;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class JobController extends Controller
 {
@@ -27,7 +28,11 @@ class JobController extends Controller
         $scope = $request->string('scope')->toString();
         $status = $request->string('status')->toString();
 
-        $query = Job::query()->with(['postedBy:id,name', 'assignedTo:id,name']);
+        $query = Job::query()->with([
+            'postedBy:id,name',
+            'assignedTo:id,name',
+            'finalizedInvoice:id,job_id,status,number,total,currency,issued_at'
+        ]);
 
         if ($user) {
             $query->visibleTo($user);
@@ -42,7 +47,7 @@ class JobController extends Controller
         if ($scope === 'available') {
             $query->where('status', 'open')->whereNull('assigned_to_id');
         } elseif ($scope === 'current') {
-            $query->whereIn('status', ['in_progress', 'accepted', 'collected', 'in_transit', 'pending'])
+            $query->whereIn('status', ['in_progress', 'accepted', 'collected', 'in_transit', 'pending', 'completion_pending'])
                 ->when(!$user?->isAdmin(), function ($inner) use ($user) {
                     $inner->where(function ($child) use ($user) {
                         $child->where('assigned_to_id', $user->id)
@@ -99,24 +104,26 @@ class JobController extends Controller
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'pickup_label' => ['required', 'string', 'max:255'],
             'pickup_postcode' => ['required', 'string', 'max:20'],
-            'dropoff_label' => ['required', 'string', 'max:255'],
             'dropoff_postcode' => ['required', 'string', 'max:20'],
-            'pickup_notes' => ['nullable', 'string'],
-            'dropoff_notes' => ['nullable', 'string'],
-            'distance_mi' => ['nullable', 'numeric', 'min:0'],
-            'company' => ['nullable', 'string', 'max:255'],
             'vehicle_make' => ['nullable', 'string', 'max:255'],
-            'vehicle_type' => ['nullable', 'string', 'max:255'],
-            'notes' => ['nullable', 'string'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'transport_type' => ['required', Rule::in(['drive_away', 'trailer'])],
         ]);
 
-        $job = Job::create(array_merge($data, [
+        $job = Job::create([
             'status' => 'open',
             'posted_by_id' => $user->id,
-        ]));
+            'title' => $data['title'],
+            'pickup_postcode' => $data['pickup_postcode'],
+            'pickup_label' => $data['pickup_postcode'],
+            'dropoff_postcode' => $data['dropoff_postcode'],
+            'dropoff_label' => $data['dropoff_postcode'],
+            'vehicle_make' => $data['vehicle_make'] ?? null,
+            'vehicle_type' => null,
+            'price' => $data['price'],
+            'transport_type' => $data['transport_type'],
+        ]);
 
         return response()->json($job, 201);
     }
@@ -125,7 +132,11 @@ class JobController extends Controller
     {
         $user = $request->user();
 
-        $job->load(['postedBy:id,name,email', 'assignedTo:id,name,email']);
+        $job->load([
+            'postedBy:id,name,email',
+            'assignedTo:id,name,email',
+            'finalizedInvoice:id,job_id,status,number,total,currency,issued_at'
+        ]);
 
         if ($user) {
             if ($user->isAdmin() || $job->posted_by_id === $user->id) {
@@ -147,6 +158,21 @@ class JobController extends Controller
             }
         }
 
+        if ($user && ($user->isAdmin() || $job->posted_by_id === $user->id || $job->assigned_to_id === $user->id)) {
+            $expenses = $job->expenses()
+                ->with(['driver:id,name'])
+                ->orderByDesc('created_at')
+                ->get();
+
+            $job->setRelation('expenses', $expenses);
+
+            $job->setAttribute('expenses_summary', [
+                'submitted_total' => $expenses->where('status', 'submitted')->sum(fn ($expense) => $expense->total_amount),
+                'approved_total' => $expenses->where('status', 'approved')->sum(fn ($expense) => $expense->total_amount),
+                'rejected_total' => $expenses->where('status', 'rejected')->sum(fn ($expense) => $expense->total_amount),
+            ]);
+        }
+
         return response()->json($job);
     }
 
@@ -161,18 +187,19 @@ class JobController extends Controller
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'price' => ['sometimes', 'numeric', 'min:0'],
-            'pickup_label' => ['sometimes', 'string', 'max:255'],
             'pickup_postcode' => ['sometimes', 'string', 'max:20'],
-            'dropoff_label' => ['sometimes', 'string', 'max:255'],
             'dropoff_postcode' => ['sometimes', 'string', 'max:20'],
-            'pickup_notes' => ['nullable', 'string'],
-            'dropoff_notes' => ['nullable', 'string'],
-            'distance_mi' => ['nullable', 'numeric', 'min:0'],
-            'company' => ['nullable', 'string', 'max:255'],
             'vehicle_make' => ['nullable', 'string', 'max:255'],
-            'vehicle_type' => ['nullable', 'string', 'max:255'],
-            'notes' => ['nullable', 'string'],
+            'transport_type' => ['sometimes', Rule::in(['drive_away', 'trailer'])],
         ]);
+
+        if (array_key_exists('pickup_postcode', $data)) {
+            $data['pickup_label'] = $data['pickup_postcode'];
+        }
+
+        if (array_key_exists('dropoff_postcode', $data)) {
+            $data['dropoff_label'] = $data['dropoff_postcode'];
+        }
 
         $job->update($data);
 

@@ -1,18 +1,25 @@
 <script setup>
 import { onMounted, ref } from 'vue';
-import api from '@/services/api';
+import { fetchInvoices, downloadInvoice } from '@/services/invoices';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
 const invoices = ref([]);
 const loading = ref(false);
+const downloadingId = ref(null);
 const errorMessage = ref('');
 
-const currency = new Intl.NumberFormat('en-GB', {
-  style: 'currency',
-  currency: 'GBP',
-  maximumFractionDigits: 2
-});
+function formatCurrency(value, currencyCode = 'GBP') {
+  try {
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
+      currency: currencyCode || 'GBP',
+      maximumFractionDigits: 2
+    }).format(Number(value || 0));
+  } catch {
+    return `${currencyCode} ${Number(value || 0).toFixed(2)}`;
+  }
+}
 
 async function loadInvoices() {
   if (!auth.token) {
@@ -24,16 +31,37 @@ async function loadInvoices() {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const { data } = await api.get('/invoices');
-    invoices.value = Array.isArray(data?.data) ? data.data : [];
+    const payload = await fetchInvoices();
+    invoices.value = Array.isArray(payload?.data) ? payload.data : [];
   } catch (error) {
     console.error('Failed to load invoices', error);
-    errorMessage.value = 'Unable to reach the invoices API. Showing sample data.';
-    invoices.value = [
-      { id: 'inv-1001', total: 128.5, status: 'sent', issued_at: new Date().toISOString(), job_ref: 'demo-1' }
-    ];
+    errorMessage.value = 'Unable to load invoices right now.';
+    invoices.value = [];
   } finally {
     loading.value = false;
+  }
+}
+
+async function handleDownload(invoice) {
+  if (!invoice?.id) return;
+
+  downloadingId.value = invoice.id;
+  try {
+    const response = await downloadInvoice(invoice.id);
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${invoice.number || invoice.id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Failed to download invoice', error);
+    alert('We could not download this invoice. Please try again later.');
+  } finally {
+    downloadingId.value = null;
   }
 }
 
@@ -59,7 +87,11 @@ onMounted(async () => {
     </p>
 
     <div v-if="loading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
-      Loading invoices&hellip;
+      Loading invoices...
+    </div>
+
+    <div v-else-if="!invoices.length" class="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-600">
+      No invoices yet. Approved jobs will appear here once completion is signed off.
     </div>
 
     <table v-else class="min-w-full divide-y divide-slate-200 overflow-hidden rounded-2xl border bg-white">
@@ -67,32 +99,66 @@ onMounted(async () => {
         <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
           <th class="px-4 py-3">Invoice</th>
           <th class="px-4 py-3">Job</th>
+          <th class="px-4 py-3">Subtotal</th>
+          <th class="px-4 py-3">VAT</th>
           <th class="px-4 py-3">Total</th>
           <th class="px-4 py-3">Status</th>
           <th class="px-4 py-3">Issued</th>
+          <th class="px-4 py-3 sr-only">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-200 text-sm text-slate-700">
         <tr v-for="invoice in invoices" :key="invoice.id">
           <td class="px-4 py-3 font-semibold text-slate-900">
-            {{ invoice.id }}
+            {{ invoice.number || invoice.id }}
           </td>
           <td class="px-4 py-3">
-            {{ invoice.job_ref || '—' }}
+            <div class="font-medium text-slate-800">
+              {{ invoice.job?.title || `Job #${invoice.job?.id ?? '--'}` }}
+            </div>
+            <div class="text-xs text-slate-500">
+              Job ID: {{ invoice.job?.id ?? '--' }}
+            </div>
           </td>
           <td class="px-4 py-3">
-            {{ currency.format(Number(invoice.total ?? 0)) }}
+            {{ formatCurrency(invoice.subtotal, invoice.currency) }}
           </td>
           <td class="px-4 py-3">
-            <span class="badge bg-emerald-100 text-emerald-700">
+            {{ formatCurrency(invoice.vat_total, invoice.currency) }}
+          </td>
+          <td class="px-4 py-3">
+            {{ formatCurrency(invoice.total, invoice.currency) }}
+          </td>
+          <td class="px-4 py-3">
+            <span
+              class="badge"
+              :class="{
+                'bg-emerald-100 text-emerald-700': invoice.status === 'finalized',
+                'bg-amber-100 text-amber-700': invoice.status === 'draft',
+                'bg-slate-200 text-slate-700': !invoice.status
+              }"
+            >
               {{ invoice.status || 'draft' }}
             </span>
           </td>
           <td class="px-4 py-3">
-            {{ invoice.issued_at ? new Date(invoice.issued_at).toLocaleDateString() : '—' }}
+            {{ invoice.issued_at ? new Date(invoice.issued_at).toLocaleDateString() : '--' }}
+          </td>
+          <td class="px-4 py-3 text-right">
+            <button
+              type="button"
+              class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              :disabled="!invoice.pdf_available || downloadingId === invoice.id"
+              @click="handleDownload(invoice)"
+            >
+              <span v-if="downloadingId === invoice.id">Downloading...</span>
+              <span v-else>Download PDF</span>
+            </button>
           </td>
         </tr>
       </tbody>
     </table>
   </div>
 </template>
+
+

@@ -71,11 +71,11 @@ const route = useRoute();
 const navLinks = [
   { to: '/', label: 'Home', exact: true },
   { to: '/driver', label: 'Driver', roles: ['driver'] },
+  { to: '/invoices', label: 'Invoices', roles: ['driver', 'dealer', 'admin'] },
   { to: '/jobs', label: 'Jobs' },
   { to: '/membership', label: 'Membership' },
   { to: '/messages', label: 'Messages' },
   { to: '/planner', label: 'Planner', condition: () => auth.hasPlannerAccess },
-  { to: '/invoices', label: 'Invoices', roles: ['dealer', 'admin'] },
   { to: '/profile', label: 'Profile' }
 ];
 

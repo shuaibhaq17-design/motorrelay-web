@@ -23,7 +23,7 @@ class DriverDashboardController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $activeStatuses = ['in_progress', 'accepted', 'collected', 'in_transit', 'pending'];
+        $activeStatuses = ['in_progress', 'accepted', 'collected', 'in_transit', 'pending', 'completion_pending'];
         $completedStatuses = ['completed', 'delivered', 'closed'];
 
         $activeJobs = $assignedJobs
