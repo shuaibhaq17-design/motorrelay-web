@@ -5,6 +5,9 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
     plan: null,
+    planSlug: null,
+    planLimits: {},
+    usage: {},
     token: null,
     jobs: {
       assigned: [],
@@ -20,6 +23,9 @@ export const useAuthStore = defineStore('auth', {
     assignedJobs: (state) => state.jobs?.assigned ?? [],
     postedJobs: (state) => state.jobs?.posted ?? [],
     completedJobs: (state) => state.jobs?.completed ?? [],
+    isStarter() {
+      return (this.planSlug || '').toLowerCase() === 'starter';
+    },
     isDealer() {
       return this.role === 'dealer';
     },
@@ -27,7 +33,7 @@ export const useAuthStore = defineStore('auth', {
       return this.role === 'driver';
     },
     hasPlannerAccess() {
-      return this.role === 'admin' || (this.role === 'driver' && String(this.plan).toLowerCase() === 'gold');
+      return this.role === 'admin' || (this.role === 'driver' && this.planSlug === 'gold_driver');
     }
   },
   actions: {
@@ -44,10 +50,13 @@ export const useAuthStore = defineStore('auth', {
         }
       }
     },
-    setSession({ token, user, plan, jobs }) {
+    setSession({ token, user, plan, planSlug, planLimits, usage, jobs }) {
       this.token = token || null;
       this.user = user || null;
       this.plan = plan || null;
+      this.planSlug = planSlug || user?.plan_slug || null;
+      this.planLimits = planLimits || {};
+      this.usage = usage || {};
       this.jobs = {
         assigned: Array.isArray(jobs?.assigned) ? jobs.assigned : [],
         posted: Array.isArray(jobs?.posted) ? jobs.posted : [],
@@ -62,7 +71,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     clearSession() {
-      this.setSession({ token: null, user: null, plan: null });
+      this.setSession({ token: null, user: null, plan: null, planSlug: null, planLimits: {}, usage: {} });
     },
     async fetchMe() {
       if (!this.token) {
@@ -75,6 +84,9 @@ export const useAuthStore = defineStore('auth', {
         const { data } = await api.get('/profile');
         this.user = data?.user ?? null;
         this.plan = data?.plan ?? null;
+        this.planSlug = data?.plan_slug ?? this.user?.plan_slug ?? null;
+        this.planLimits = data?.plan_limits ?? {};
+        this.usage = data?.usage ?? {};
         this.jobs = {
           assigned: Array.isArray(data?.jobs?.assigned) ? data.jobs.assigned : [],
           posted: Array.isArray(data?.jobs?.posted) ? data.jobs.posted : [],

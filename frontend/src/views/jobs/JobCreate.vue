@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
@@ -13,7 +13,13 @@ const form = reactive({
   dropoff_postcode: '',
   vehicle_make: '',
   price: '',
-  transport_type: 'drive_away'
+  transport_type: 'drive_away',
+  pickup_date: '',
+  pickup_time: '',
+  delivery_date: '',
+  delivery_time: '',
+  is_urgent: false,
+  urgent_fee_ack: false
 });
 
 const submitting = ref(false);
@@ -36,8 +42,78 @@ const selectedTransport = computed(() => {
   return transportOptions.find((option) => option.value === form.transport_type) ?? transportOptions[0];
 });
 
+const paidPlans = ['gold_driver', 'dealer_pro'];
+const planSlug = computed(() => (auth.planSlug || auth.user?.plan_slug || '').toLowerCase());
+const hasPaidPlan = computed(() => paidPlans.includes(planSlug.value));
+const requiresUrgentAcknowledgement = computed(() => form.is_urgent && !hasPaidPlan.value);
+const urgentHelperText = computed(() => {
+  if (!form.is_urgent) {
+    return 'Enable urgent boost to highlight your job to available drivers.';
+  }
+  return hasPaidPlan.value
+    ? 'Urgent boost is included with your subscription.'
+    : 'Urgent boost adds an extra charge on Starter so we can prioritise your job.';
+});
+
 function selectTransport(value) {
   form.transport_type = value;
+}
+
+watch(
+  () => form.is_urgent,
+  (next) => {
+    if (!next) {
+      form.urgent_fee_ack = false;
+    }
+  }
+);
+
+const starterUsageInfo = computed(() => {
+  if (planSlug.value !== 'starter') return null;
+
+  const jobLimit = auth.planLimits?.monthly_job_posts ?? null;
+  const jobUsed = auth.usage?.job_posts_this_month ?? 0;
+  const urgentLimit = auth.planLimits?.urgent_boost_per_month ?? null;
+  const urgentUsed = auth.usage?.urgent_boosts_used ?? 0;
+
+  return {
+    jobLimit,
+    jobUsed,
+    jobRemaining: jobLimit != null ? Math.max(jobLimit - jobUsed, 0) : null,
+    urgentLimit,
+    urgentUsed,
+    urgentRemaining: urgentLimit != null ? Math.max(urgentLimit - urgentUsed, 0) : null
+  };
+});
+
+const canUseUrgentBoost = computed(() => {
+  if (!starterUsageInfo.value) return true;
+  if (starterUsageInfo.value.urgentRemaining === null) return true;
+  return starterUsageInfo.value.urgentRemaining > 0;
+});
+
+watch(canUseUrgentBoost, (allowed) => {
+  if (!allowed) {
+    form.is_urgent = false;
+    form.urgent_fee_ack = false;
+  }
+});
+
+
+function buildDateTime(dateValue, timeValue) {
+  if (!dateValue) {
+    return null;
+  }
+  const timePart = timeValue ? `${timeValue}` : '00:00';
+  return `${dateValue} ${timePart}`;
+}
+
+function buildComparison(dateValue, timeValue) {
+  if (!dateValue) {
+    return null;
+  }
+  const safeTime = timeValue ? `${timeValue}:00` : '00:00:00';
+  return new Date(`${dateValue}T${safeTime}`);
 }
 
 async function submit() {
@@ -50,19 +126,38 @@ async function submit() {
   errorMessage.value = '';
 
   try {
+    if (requiresUrgentAcknowledgement.value && !form.urgent_fee_ack) {
+      throw new Error('Please acknowledge the urgent boost fee before continuing.');
+    }
+
+    const pickupComparable = buildComparison(form.pickup_date, form.pickup_time);
+    const deliveryComparable = buildComparison(form.delivery_date, form.delivery_time);
+
+    if (pickupComparable && deliveryComparable && deliveryComparable < pickupComparable) {
+      throw new Error('Delivery due time must be after the pickup ready time.');
+    }
+
     await api.post('/jobs', {
       title: form.title,
       pickup_postcode: form.pickup_postcode,
       dropoff_postcode: form.dropoff_postcode,
       vehicle_make: form.vehicle_make,
       price: Number(form.price || 0),
-      transport_type: form.transport_type
+      transport_type: form.transport_type,
+      pickup_ready_at: buildDateTime(form.pickup_date, form.pickup_time),
+      delivery_due_at: buildDateTime(form.delivery_date, form.delivery_time),
+      is_urgent: form.is_urgent,
+      urgent_accept_fee: requiresUrgentAcknowledgement.value ? form.urgent_fee_ack : false
     });
 
+    await auth.fetchMe().catch(() => null);
     router.push({ name: 'jobs' });
   } catch (error) {
     console.error('Failed to create job', error);
-    errorMessage.value = error.response?.data?.message || 'Could not create job. Please check the form.';
+    errorMessage.value =
+      error.response?.data?.message ||
+      error.message ||
+      'Could not create job. Please check the form.';
   } finally {
     submitting.value = false;
   }
@@ -85,6 +180,12 @@ onMounted(() => {
     </header>
 
     <form class="space-y-4" @submit.prevent="submit">
+      <div v-if="starterUsageInfo" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-800">
+        <p class="font-semibold text-emerald-900">Starter plan usage</p>
+        <p class="mt-1">Job posts this month: {{ starterUsageInfo.jobUsed }}<span v-if="starterUsageInfo.jobLimit"> / {{ starterUsageInfo.jobLimit }}</span></p>
+        <p>Urgent boosts used: {{ starterUsageInfo.urgentUsed }}<span v-if="starterUsageInfo.urgentLimit"> / {{ starterUsageInfo.urgentLimit }}</span></p>
+        <p v-if="starterUsageInfo.jobRemaining !== null" class="text-xs text-emerald-700">{{ starterUsageInfo.jobRemaining }} job(s) remaining this month.</p>
+      </div>
       <div>
         <label class="text-sm font-semibold text-slate-700">Title</label>
         <input
@@ -129,7 +230,7 @@ onMounted(() => {
       </div>
 
       <div>
-        <label class="text-sm font-semibold text-slate-700">Price (£)</label>
+        <label class="text-sm font-semibold text-slate-700">Price (GBP)</label>
         <input
           v-model="form.price"
           type="number"
@@ -163,6 +264,81 @@ onMounted(() => {
         </p>
       </div>
 
+      <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <header class="mb-3">
+          <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Timing preferences</h2>
+          <p class="text-xs text-slate-500">
+            Let drivers know when the vehicle is ready for collection and when you need it delivered.
+          </p>
+        </header>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="text-xs font-semibold uppercase text-slate-500">Pickup ready date</label>
+            <input
+              v-model="form.pickup_date"
+              type="date"
+              class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+            <input
+              v-model="form.pickup_time"
+              type="time"
+              class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold uppercase text-slate-500">Delivery due by</label>
+            <input
+              v-model="form.delivery_date"
+              type="date"
+              class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+            <input
+              v-model="form.delivery_time"
+              type="time"
+              class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+        <label class="flex items-start gap-3">
+          <input
+            v-model="form.is_urgent" :disabled="!canUseUrgentBoost"
+            type="checkbox"
+            class="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+          />
+          <span>
+            <span class="text-sm font-semibold text-emerald-800">Add urgent job boost</span>
+            <p class="text-xs text-emerald-700">{{ urgentHelperText }}</p>
+          </span>
+        </label>
+
+        <div
+          v-if="requiresUrgentAcknowledgement"
+          class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800"
+        >
+          <p>The urgent boost adds an extra charge for Starter plans.</p>
+          <label class="mt-2 flex items-start gap-2">
+            <input
+              v-model="form.urgent_fee_ack"
+              type="checkbox"
+              class="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500"
+            />
+            <span>I understand an extra urgent fee will be added to this job.</span>
+          </label>
+        </div>
+        <p v-if="starterUsageInfo && starterUsageInfo.urgentRemaining === 0" class="mt-3 text-xs text-amber-700">
+          Starter urgent boost quota reached for this month.
+        </p>
+      </section>
+
+      <p class="text-xs text-slate-500">
+        New jobs stay private for the first three minutes so you can make quick corrections before drivers see them.
+      </p>
+
       <p v-if="errorMessage" class="text-sm text-red-600">
         {{ errorMessage }}
       </p>
@@ -171,9 +347,9 @@ onMounted(() => {
         <button
           type="submit"
           class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="submitting"
+          :disabled="submitting || (requiresUrgentAcknowledgement && !form.urgent_fee_ack)"
         >
-          <span v-if="submitting">Creating…</span>
+          <span v-if="submitting">Creating...</span>
           <span v-else>Create job</span>
         </button>
       </div>

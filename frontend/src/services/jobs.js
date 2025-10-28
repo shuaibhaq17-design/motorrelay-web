@@ -127,3 +127,8 @@ export async function sendJobInvoice(jobId) {
   const { data } = await api.post(`/jobs/${jobId}/invoice/send`);
   return data;
 }
+
+export async function updateJobLocation(jobId, payload) {
+  const { data } = await api.post(`/jobs/${jobId}/location-update`, payload);
+  return data;
+}

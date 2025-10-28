@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <style>
+      .bg { fill: #0b5d47; }
+      .stroke { fill: none; stroke: #ffffff; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+  <rect class="bg" width="256" height="256" rx="20" />
+  <path class="stroke" stroke-width="12" d="M60 146v-32c0-17.673 14.327-32 32-32h64c14.536 0 27.48 8.863 32.776 22.39L197 122h15c9.941 0 18 8.059 18 18v12" />
+  <path class="stroke" stroke-width="12" d="M68 146h124" />
+  <ellipse cx="104" cy="162" rx="24" ry="24" fill="#0b5d47" stroke="#ffffff" stroke-width="12" />
+  <ellipse cx="168" cy="162" rx="24" ry="24" fill="#0b5d47" stroke="#ffffff" stroke-width="12" />
+  <path class="stroke" stroke-width="12" d="M188 162h28" />
+</svg>

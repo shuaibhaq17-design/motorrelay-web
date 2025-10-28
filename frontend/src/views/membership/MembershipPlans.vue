@@ -1,25 +1,66 @@
 <script setup>
+import { computed } from 'vue';
+import { useAuthStore } from '@/stores/auth';
+
+const auth = useAuthStore();
+const role = computed(() => auth.role);
+const showDriverFeatures = computed(() => role.value === 'driver' || !role.value);
+const showDealerFeatures = computed(() => role.value === 'dealer' || role.value === 'admin' || !role.value);
+
 const plans = [
   {
-    id: 'free',
-    name: 'Starter',
+    id: 'bronze',
+    name: 'Bronze',
     price: '£0',
-    description: 'Browse public jobs and deliver on-demand.',
-    features: ['Public marketplace access', 'Standard support']
+    description: 'Core tools for independents getting started with MotorRelay.',
+    drivers: [
+      'Access to local job board',
+      'Up to 5 job applications per day',
+      'Manual invoice downloads',
+      'Community support centre'
+    ],
+    dealers: [
+      'Post up to 5 jobs per month',
+      'Daily job view analytics',
+      'Email notifications for run updates',
+      'Single user seat'
+    ]
   },
   {
-    id: 'pro',
-    name: 'Gold Driver',
+    id: 'silver',
+    name: 'Silver',
     price: '£29/mo',
-    description: 'Unlock planner tools and preferred listings.',
-    features: ['Planner dashboard', 'Priority support', 'Instant payouts']
+    description: 'Productivity perks for growing driver fleets and active dealers.',
+    drivers: [
+      'Planner dashboard & saved routes',
+      'Priority chat support',
+      'Instant payout eligibility',
+      'Job search radius up to 100 miles'
+    ],
+    dealers: [
+      'Post up to 40 jobs per month',
+      '2 urgent boosts included monthly',
+      'Shared inbox for team co-ordination',
+      'Automated invoice exports'
+    ]
   },
   {
-    id: 'dealer',
-    name: 'Dealer Pro',
+    id: 'gold',
+    name: 'Gold',
     price: '£79/mo',
-    description: 'Dedicated support for dealerships with bulk jobs.',
-    features: ['Unlimited job posts', 'Team messaging', 'Custom integrations']
+    description: 'Enterprise assistance for nationwide drivers and high-volume dealers.',
+    drivers: [
+      'Unlimited job applications',
+      'Dedicated account manager',
+      'Same-day fuel & expense reconciliation',
+      'API hooks for telemetry integrations'
+    ],
+    dealers: [
+      'Unlimited job posts & archived reporting',
+      'Team permissions & workload routing',
+      'Custom integrations & webhooks',
+      'Quarterly optimisation reviews'
+    ]
   }
 ];
 </script>
@@ -35,7 +76,7 @@ const plans = [
       <article
         v-for="plan in plans"
         :key="plan.id"
-        class="tile flex flex-col gap-4 p-6 text-left"
+        class="tile flex flex-col gap-5 p-6 text-left"
       >
         <header>
           <h2 class="text-xl font-semibold text-slate-900">{{ plan.name }}</h2>
@@ -43,16 +84,34 @@ const plans = [
           <p class="mt-2 text-sm text-slate-600">{{ plan.description }}</p>
         </header>
 
-        <ul class="space-y-2 text-sm text-slate-600">
-          <li
-            v-for="feature in plan.features"
-            :key="feature"
-            class="flex items-center gap-2"
-          >
-            <span class="text-emerald-500">✔</span>
-            <span>{{ feature }}</span>
-          </li>
-        </ul>
+        <div class="space-y-4 text-sm text-slate-600">
+          <section v-if="showDriverFeatures">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Drivers</h3>
+            <ul class="mt-2 space-y-2">
+              <li
+                v-for="driverFeature in plan.drivers"
+                :key="`driver-${plan.id}-${driverFeature}`"
+                class="flex items-center gap-2"
+              >
+                <span class="text-emerald-500">✔</span>
+                <span>{{ driverFeature }}</span>
+              </li>
+            </ul>
+          </section>
+          <section v-if="showDealerFeatures">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Dealers</h3>
+            <ul class="mt-2 space-y-2">
+              <li
+                v-for="dealerFeature in plan.dealers"
+                :key="`dealer-${plan.id}-${dealerFeature}`"
+                class="flex items-center gap-2"
+              >
+                <span class="text-emerald-500">✔</span>
+                <span>{{ dealerFeature }}</span>
+              </li>
+            </ul>
+          </section>
+        </div>
 
         <button
           type="button"

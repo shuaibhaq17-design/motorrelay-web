@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class MessageController extends Controller
 {
@@ -34,6 +36,17 @@ class MessageController extends Controller
             ->get()
             ->map(function (MessageThread $thread) {
                 $lastMessage = $thread->messages->first();
+                $lastSummary = $lastMessage?->body;
+
+                if (!$lastSummary && $lastMessage) {
+                    $metaType = $lastMessage->meta['type'] ?? null;
+                    if ($metaType === 'location_update') {
+                        $lastSummary = 'Live location update';
+                    } elseif ($lastMessage->attachments->isNotEmpty()) {
+                        $lastSummary = '[Attachment]';
+                    }
+                }
+
                 return [
                     'id' => $thread->id,
                     'subject' => $thread->subject,
@@ -42,7 +55,7 @@ class MessageController extends Controller
                         'id' => $participant->id,
                         'name' => $participant->name,
                     ]),
-                    'last_message' => $lastMessage?->body ?? ($lastMessage && $lastMessage->attachments->isNotEmpty() ? '[Attachment]' : null),
+                    'last_message' => $lastSummary,
                     'updated_at' => $thread->updated_at,
                     'unread_count' => $thread->unread_count,
                 ];
@@ -96,6 +109,20 @@ class MessageController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        $planSlug = $user->plan_slug ?? Str::slug((string) $user->plan, '_');
+        if ($planSlug === 'starter' && !$user->isAdmin()) {
+            $cooldownHours = config('jobs.plan_limits.starter.message_cooldown_hours', 24);
+            if ($cooldownHours > 0) {
+                $recentMessage = Message::where('user_id', $user->id)->latest()->first();
+                if ($recentMessage && $recentMessage->created_at->gt(Carbon::now()->subHours($cooldownHours))) {
+                    abort(429, sprintf(
+                        'Starter plan allows one message every %d hours. Upgrade for instant replies.',
+                        $cooldownHours
+                    ));
+                }
+            }
+        }
 
         $validated = $request->validate([
             'thread_id' => ['nullable', 'exists:message_threads,id'],
@@ -165,6 +192,16 @@ class MessageController extends Controller
 
         $lastMessage = $thread->messages->first();
 
+        $lastSummary = $lastMessage?->body;
+        if (!$lastSummary && $lastMessage) {
+            $metaType = $lastMessage->meta['type'] ?? null;
+            if ($metaType === 'location_update') {
+                $lastSummary = 'Live location update';
+            } elseif ($lastMessage->attachments->isNotEmpty()) {
+                $lastSummary = '[Attachment]';
+            }
+        }
+
         $threadSummary = [
             'id' => $thread->id,
             'subject' => $thread->subject,
@@ -173,7 +210,7 @@ class MessageController extends Controller
                 'id' => $participant->id,
                 'name' => $participant->name,
             ]),
-            'last_message' => $lastMessage?->body ?? ($lastMessage && $lastMessage->attachments->isNotEmpty() ? '[Attachment]' : null),
+            'last_message' => $lastSummary,
             'updated_at' => $thread->updated_at,
             'unread_count' => 0,
         ];

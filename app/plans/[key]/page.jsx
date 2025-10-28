@@ -47,7 +47,7 @@ export default function PlanInfoPage({ params }) {
             disabled={!agree}
             onClick={async () => {
               await supabase.rpc('fn_set_membership', { p_plan_key: key });
-              if (key === 'bronze') window.location.href = '/profile';
+              if (key === 'starter') window.location.href = '/profile';
               else window.location.href = '/billing/bank';
             }}
             className="px-4 py-2 rounded-xl bg-emerald-600 text-white disabled:opacity-50"

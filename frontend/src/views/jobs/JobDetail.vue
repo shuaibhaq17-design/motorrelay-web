@@ -14,7 +14,8 @@ import {
   approveJobCompletion,
   rejectJobCompletion,
   downloadExpenseReceipt,
-  downloadDeliveryProof
+  downloadDeliveryProof,
+  updateJobLocation
 } from "@/services/jobs";
 import { useAuthStore } from "@/stores/auth";
 
@@ -59,6 +60,13 @@ const completionSubmitting = ref(false);
 const completionDecisionLoading = ref(false);
 const proofDownloading = ref(false);
 
+const trackingState = reactive({
+  sending: false,
+  error: "",
+  lastUpdate: null
+});
+const navigationModalOpen = ref(false);
+
 const priceFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",
@@ -90,6 +98,67 @@ function formatDateTime(value) {
   } catch {
     return value;
   }
+}
+
+function getCurrentPosition(options = {}) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported on this device."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+async function shareLiveLocation() {
+  if (!job.value) return;
+  trackingState.error = "";
+  trackingState.sending = true;
+  try {
+    const position = await getCurrentPosition({
+      enableHighAccuracy: true,
+      maximumAge: 30000,
+      timeout: 15000
+    });
+
+    const coords = position.coords || {};
+    const payload = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy ?? undefined,
+      heading: coords.heading ?? undefined,
+      speed_kph: typeof coords.speed === "number" && !Number.isNaN(coords.speed) ? Math.max(coords.speed * 3.6, 0) : undefined,
+      source: "web"
+    };
+
+    if (payload.latitude === undefined || payload.longitude === undefined) {
+      throw new Error("Unable to determine your current position.");
+    }
+
+    const response = await updateJobLocation(job.value.id, payload);
+    if (response?.job) {
+      job.value = {
+        ...job.value,
+        current_latitude: response.job.current_latitude,
+        current_longitude: response.job.current_longitude,
+        last_tracked_at: response.job.last_tracked_at
+      };
+      trackingState.lastUpdate = response.job.last_tracked_at;
+    }
+    navigationModalOpen.value = true;
+  } catch (error) {
+    console.error("Failed to share live location", error);
+    trackingState.error =
+      error?.message ||
+      error?.response?.data?.message ||
+      "We could not determine your current location. Please try again.";
+  } finally {
+    trackingState.sending = false;
+  }
+}
+
+function closeNavigationModal() {
+  navigationModalOpen.value = false;
 }
 
 function resetExpenseForm() {
@@ -181,6 +250,65 @@ async function refreshExpenses() {
 const assignedDriver = computed(() => job.value?.assigned_to ?? null);
 const currentRole = computed(() => auth.role ?? auth.user?.role ?? null);
 
+const goLiveDate = computed(() => {
+  if (!job.value?.goes_live_at) return null;
+  const parsed = new Date(job.value.goes_live_at);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+});
+
+const isAwaitingGoLive = computed(() => {
+  if (!goLiveDate.value) return false;
+  return goLiveDate.value.getTime() > Date.now();
+});
+
+const goLiveFormatted = computed(() => {
+  if (!goLiveDate.value) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(goLiveDate.value);
+});
+
+
+const basicAnalytics = computed(() => job.value?.basic_analytics ?? null);
+
+const lastTrackedAt = computed(() => trackingState.lastUpdate ?? job.value?.last_tracked_at ?? null);
+
+const lastTrackedDisplay = computed(() => (lastTrackedAt.value ? formatDateTime(lastTrackedAt.value) : ""));
+
+const canShareTracking = computed(() => {
+  if (!job.value || !auth.user) return false;
+  const activeStatuses = new Set(["in_progress", "collected", "in_transit", "accepted"]);
+  return job.value.assigned_to_id === auth.user.id && activeStatuses.has(String(job.value.status || "").toLowerCase());
+});
+
+const navigationDestination = computed(() => {
+  if (!job.value) return "";
+  const parts = [job.value.dropoff_label, job.value.dropoff_postcode].filter(Boolean);
+  return parts.join(", ");
+});
+
+const navigationLinks = computed(() => {
+  const destination = navigationDestination.value;
+  if (!destination) return [];
+  const encoded = encodeURIComponent(destination);
+  return [
+    {
+      id: "google",
+      label: "Open in Google Maps",
+      href: `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`
+    },
+    {
+      id: "waze",
+      label: "Open in Waze",
+      href: `https://waze.com/ul?q=${encoded}&navigate=yes`
+    }
+  ];
+});
+
 const statusDescription = computed(() => {
   if (!job.value) return "";
   const status = String(job.value.status || "").toLowerCase();
@@ -247,6 +375,9 @@ const canReviewExpenses = computed(() => {
   return currentRole.value === "admin" || isDealerForJob.value;
 });
 
+const shouldShowGoLiveBanner = computed(
+  () => isDealerForJob.value && isAwaitingGoLive.value
+);
 const completionStatus = computed(() => job.value?.completion_status ?? "not_submitted");
 
 const canSubmitCompletion = computed(() => {
@@ -289,12 +420,14 @@ async function loadJob() {
     const payload = await fetchJob(jobId);
     job.value = payload?.data ?? payload ?? null;
     syncExpensesFromJob();
+    trackingState.lastUpdate = job.value?.last_tracked_at ?? null;
   } catch (error) {
     console.error("Failed to load job", error);
     errorMessage.value = "We could not load this job.";
     job.value = null;
     expenses.value = [];
     updateExpenseSummary([]);
+    trackingState.lastUpdate = null;
   } finally {
     loading.value = false;
   }
@@ -572,6 +705,15 @@ watch(
     loadJob();
   }
 );
+
+watch(
+  () => job.value?.last_tracked_at,
+  (value) => {
+    if (value) {
+      trackingState.lastUpdate = value;
+    }
+  }
+);
 </script>
 
 <template>
@@ -611,6 +753,17 @@ watch(
           </div>
         </div>
       </header>
+
+      <section
+        v-if="shouldShowGoLiveBanner"
+        class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+      >
+        <div class="font-semibold text-amber-900">Scheduled to go live soon</div>
+        <p class="mt-1">
+          This job will become visible to drivers at
+          <strong>{{ goLiveFormatted }}</strong>. You can make changes from the Jobs page until then.
+        </p>
+      </section>
 
       <section class="grid gap-4 lg:grid-cols-3">
         <div class="tile p-4">
@@ -670,6 +823,69 @@ watch(
               No driver assigned
             </option>
           </select>
+        </div>
+      </section>
+
+      <section v-if="canShareTracking" class="tile space-y-3 p-4">
+        <header class="space-y-1">
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Live tracking</h2>
+          <p class="text-xs text-slate-500">
+            Share your current position with the dealer and launch navigation for the drop-off.
+          </p>
+        </header>
+        <div class="flex flex-wrap gap-3">
+          <button
+            type="button"
+            class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+            :disabled="trackingState.sending"
+            @click="shareLiveLocation"
+          >
+            <span v-if="trackingState.sending">Sharing location…</span>
+            <span v-else>Share live location</span>
+          </button>
+          <button
+            type="button"
+            class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            @click="navigationModalOpen = true"
+          >
+            Open navigation apps
+          </button>
+        </div>
+        <p v-if="trackingState.error" class="text-xs text-rose-600">
+          {{ trackingState.error }}
+        </p>
+        <p v-if="lastTrackedDisplay" class="text-xs text-slate-500">
+          Last shared: {{ lastTrackedDisplay }}
+        </p>
+      </section>
+
+      <section v-if="basicAnalytics" class="tile space-y-4 p-4">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Basic analytics</h2>
+            <p class="text-xs text-slate-500">Snapshot of views generated while this job is live.</p>
+          </div>
+          <span class="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+            {{ basicAnalytics.views_last_7_days }} this week
+          </span>
+        </header>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Views today</p>
+            <p class="text-2xl font-bold text-slate-900">{{ basicAnalytics.views_today }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Last 7 days</p>
+            <p class="text-2xl font-bold text-slate-900">{{ basicAnalytics.views_last_7_days }}</p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Daily log</p>
+            <ul class="mt-1 space-y-1 text-xs text-slate-500">
+              <li v-for="day in basicAnalytics.daily" :key="day.date">
+                {{ new Date(day.date).toLocaleDateString() }} - {{ day.views }} views
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -794,7 +1010,7 @@ watch(
                 </p>
                 <p class="text-xs text-slate-500">
                   Submitted {{ formatDateTime(expense.submitted_at) }}
-                  <span v-if="expense.driver?.name"> • {{ expense.driver.name }}</span>
+                  <span v-if="expense.driver?.name"> - {{ expense.driver.name }}</span>
                 </p>
               </div>
               <span
@@ -1107,6 +1323,46 @@ watch(
         </div>
       </section>
     </div>
+
+    <transition name="fade">
+      <div
+        v-if="navigationModalOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
+        @click.self="closeNavigationModal"
+      >
+        <div class="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+          <header class="space-y-1">
+            <h3 class="text-lg font-semibold text-slate-900">Navigation</h3>
+            <p class="text-sm text-slate-600">
+              Choose an app to start directions to {{ navigationDestination || 'the drop-off location' }}.
+            </p>
+          </header>
+          <div class="space-y-2">
+            <a
+              v-for="link in navigationLinks"
+              :key="link.id"
+              :href="link.href"
+              target="_blank"
+              rel="noopener"
+              class="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              @click="closeNavigationModal"
+            >
+              {{ link.label }}
+              <span aria-hidden="true">↗</span>
+            </a>
+            <p v-if="!navigationLinks.length" class="text-xs text-slate-500">
+              We could not determine a destination for this job yet.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            @click="closeNavigationModal"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
-

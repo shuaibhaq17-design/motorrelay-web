@@ -61,14 +61,14 @@ test("buildDriverLeaderboard aggregates completions and revenue", () => {
 
 test("computeMembershipSummary tracks plan counts and past-due", () => {
   const subscriptions = [
-    { plan_key: "bronze", status: "active" },
-    { plan_key: "bronze", status: "past_due" },
-    { plan_key: "gold", status: "active" },
+    { plan_key: "starter", status: "active" },
+    { plan_key: "starter", status: "past_due" },
+    { plan_key: "dealer_pro", status: "active" },
   ];
 
   const summary = computeMembershipSummary(subscriptions);
   assert.equal(summary.total, 3);
-  assert.equal(summary.byPlan.bronze, 2);
+  assert.equal(summary.byPlan.starter, 2);
   assert.equal(summary.byPlan.gold, 1);
   assert.equal(summary.pastDue, 1);
 });

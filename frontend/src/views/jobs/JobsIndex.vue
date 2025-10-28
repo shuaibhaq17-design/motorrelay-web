@@ -122,6 +122,22 @@ function openJob(job) {
   router.push({ name: 'job-detail', params: { id: job.id } });
 }
 
+function jobIsAwaitingLive(job) {
+  if (!job?.goes_live_at) return false;
+  const date = new Date(job.goes_live_at);
+  return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+}
+
+function formatGoLive(job) {
+  if (!jobIsAwaitingLive(job)) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(job.goes_live_at));
+}
+
 const visibleJobs = computed(() => availableJobs.value ?? []);
 const isDriver = computed(() => auth.role === 'driver');
 const isDealer = computed(() => auth.role === 'dealer');
@@ -335,6 +351,13 @@ onMounted(async () => {
               <span class="badge bg-emerald-100 text-emerald-700">{{ job.status }}</span>
             </div>
           </div>
+
+          <p
+            v-if="isDealer && jobIsAwaitingLive(job)"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700"
+          >
+            Goes live at {{ formatGoLive(job) }}. You can still edit this job if needed.
+          </p>
 
           <div class="flex flex-wrap gap-2">
             <button

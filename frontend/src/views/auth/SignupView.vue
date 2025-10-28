@@ -12,7 +12,7 @@ const form = reactive({
   email: '',
   password: '',
   role: 'driver',
-  plan: 'bronze'
+  plan: 'Starter'
 });
 
 const submitting = ref(false);
@@ -28,6 +28,7 @@ async function submit() {
       user: data?.user || null,
       plan: data?.plan || null
     });
+    await auth.fetchMe().catch(() => null);
     router.push('/onboarding');
   } catch (error) {
     console.error('Signup failed', error);
@@ -94,12 +95,12 @@ async function submit() {
           v-model="form.plan"
           class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
         >
-          <option value="bronze">Bronze</option>
-          <option value="silver">Silver</option>
-          <option value="gold">Gold</option>
+          <option value="Starter">Starter</option>
+          <option value="Gold Driver">Gold Driver</option>
+          <option value="Dealer Pro">Dealer Pro</option>
         </select>
         <p class="mt-1 text-xs text-slate-500">
-          Bronze covers the basics, Silver adds extra support, and Gold unlocks full driver benefits.
+          Starter covers the basics, Gold Driver unlocks planner tools, and Dealer Pro supports multi-site dealerships.
         </p>
       </div>
 

@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { fetchThreads, fetchThreadMessages, sendMessage, markMessageViewed } from '@/services/messages';
 import { useAuthStore } from '@/stores/auth';
+import TrackingCard from '@/components/messages/TrackingCard.vue';
 
 const auth = useAuthStore();
 
@@ -35,6 +36,10 @@ const preview = reactive({
 
 function isImageAttachment(attachment) {
   return String(attachment?.mime_type || '').startsWith('image/');
+}
+
+function isLocationMessage(message) {
+  return Boolean(message?.meta?.type === 'location_update' && message.meta?.location);
 }
 
 onMounted(async () => {
@@ -342,10 +347,19 @@ function scrollMessagesToBottom() {
           <article
             v-for="message in messages"
             :key="message.id"
-            class="flex flex-col gap-1"
-            :class="message.user.id === auth.user?.id ? 'items-end' : 'items-start'"
+            class="flex w-full flex-col gap-2"
+            :class="isLocationMessage(message) ? 'items-stretch' : message.user.id === auth.user?.id ? 'items-end' : 'items-start'"
           >
+            <TrackingCard
+              v-if="isLocationMessage(message)"
+              :location="message.meta.location"
+              :destination="message.meta.destination"
+              :driver="message.meta.driver"
+              :eta-minutes="message.meta.eta_minutes ?? null"
+              :recorded-at="message.meta.location?.recorded_at ?? message.created_at"
+            />
             <div
+              v-else
               class="max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm"
               :class="message.user.id === auth.user?.id ? 'bg-emerald-600 text-white' : 'bg-white text-slate-800'"
             >
@@ -377,7 +391,10 @@ function scrollMessagesToBottom() {
                 </template>
               </div>
             </div>
-            <div class="flex items-center gap-2 text-[11px] text-slate-500">
+            <div
+              class="flex items-center gap-2 text-[11px] text-slate-500"
+              :class="isLocationMessage(message) ? 'self-start' : ''"
+            >
               <span>{{ message.user.name }}</span>
               <span>-</span>
               <time>{{ new Date(message.created_at).toLocaleString() }}</time>

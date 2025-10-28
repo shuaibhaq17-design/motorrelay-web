@@ -18,7 +18,7 @@ class AuthController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', Password::defaults()],
             'role' => ['required', 'in:driver,dealer,admin'],
-            'plan' => ['required', Rule::in(['bronze', 'silver', 'gold'])],
+            'plan' => ['required', Rule::in(['Starter', 'Gold Driver', 'Dealer Pro'])],
         ]);
 
         $user = User::create([

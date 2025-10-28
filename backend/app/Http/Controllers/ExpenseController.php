@@ -250,6 +250,23 @@ class ExpenseController extends Controller
             abort(422, 'Expenses cannot be changed after the invoice has been finalized.');
         }
 
+        $planSlug = $user->plan_slug ?? Str::slug((string) $user->plan, '_');
+        if (!$expense && $planSlug === 'starter' && !$user->isAdmin()) {
+            $limit = config('jobs.plan_limits.starter.max_expenses_per_job', 0);
+            if ($limit) {
+                $existingExpenses = $job->expenses()
+                    ->where('driver_id', $user->id)
+                    ->count();
+
+                if ($existingExpenses >= $limit) {
+                    abort(422, sprintf(
+                        'Starter plan allows up to %d expense uploads per job. Upgrade to track additional receipts.',
+                        $limit
+                    ));
+                }
+            }
+        }
+
         if ($expense) {
             if ($expense->driver_id !== $user->id && !$user->isAdmin()) {
                 abort(403, 'You cannot edit this expense.');

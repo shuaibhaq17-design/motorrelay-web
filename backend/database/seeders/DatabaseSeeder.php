@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'MotorRelay Admin',
                 'password' => Hash::make('password'),
                 'role' => 'admin',
-                'plan' => 'gold',
+                'plan' => 'Dealer Pro',
             ]
         );
 
@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Demo Dealer',
                 'password' => Hash::make('password'),
                 'role' => 'dealer',
-                'plan' => 'dealer',
+                'plan' => 'Starter',
             ]
         );
 
@@ -40,7 +40,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Demo Driver',
                 'password' => Hash::make('password'),
                 'role' => 'driver',
-                'plan' => 'gold',
+                'plan' => 'Gold Driver',
             ]
         );
 

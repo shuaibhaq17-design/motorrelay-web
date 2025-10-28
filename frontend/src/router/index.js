@@ -92,6 +92,71 @@ const routes = [
     }
   },
   {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('../views/admin/AdminLayout.vue'),
+    meta: {
+      breadcrumb: 'Admin Portal',
+      requiresRole: 'admin'
+    },
+    children: [
+      {
+        path: '',
+        name: 'admin-overview',
+        component: () => import('../views/admin/AdminOverview.vue'),
+        meta: {
+          breadcrumb: 'Overview',
+          requiresRole: 'admin'
+        }
+      },
+      {
+        path: 'applications',
+        name: 'admin-applications',
+        component: () => import('../views/admin/AdminApplications.vue'),
+        meta: {
+          breadcrumb: 'Applications',
+          requiresRole: 'admin'
+        }
+      },
+      {
+        path: 'conversations',
+        name: 'admin-conversations',
+        component: () => import('../views/admin/AdminConversations.vue'),
+        meta: {
+          breadcrumb: 'Conversations',
+          requiresRole: 'admin'
+        }
+      },
+      {
+        path: 'plans',
+        name: 'admin-plans',
+        component: () => import('../views/admin/AdminPlans.vue'),
+        meta: {
+          breadcrumb: 'Plans & Billing',
+          requiresRole: 'admin'
+        }
+      },
+      {
+        path: 'system-health',
+        name: 'admin-system-health',
+        component: () => import('../views/admin/AdminSystemHealth.vue'),
+        meta: {
+          breadcrumb: 'System Health',
+          requiresRole: 'admin'
+        }
+      },
+      {
+        path: 'content',
+        name: 'admin-content',
+        component: () => import('../views/admin/AdminContent.vue'),
+        meta: {
+          breadcrumb: 'Content',
+          requiresRole: 'admin'
+        }
+      }
+    ]
+  },
+  {
     path: '/login',
     name: 'login',
     component: () => import('../views/auth/LoginView.vue'),

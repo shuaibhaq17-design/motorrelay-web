@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminPortalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DriverDashboardController;
 use App\Http\Controllers\ExpenseController;
@@ -7,6 +8,7 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JobApplicationController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\JobWorkflowController;
+use App\Http\Controllers\JobTrackingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\UserProfileController;
 use Illuminate\Support\Facades\Route;
@@ -49,6 +51,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/jobs/{job}/complete', [JobWorkflowController::class, 'complete']);
     Route::post('/jobs/{job}/completion/approve', [JobWorkflowController::class, 'approveCompletion']);
     Route::post('/jobs/{job}/completion/reject', [JobWorkflowController::class, 'rejectCompletion']);
+    Route::post('/jobs/{job}/location-update', [JobTrackingController::class, 'store']);
     Route::get('/jobs/{job}/delivery-proof', [JobWorkflowController::class, 'deliveryProof']);
 
     Route::get('/messages', [MessageController::class, 'index']);
@@ -60,4 +63,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/invoices/{invoice}', [InvoiceController::class, 'show']);
     Route::get('/invoices/{invoice}/download', [InvoiceController::class, 'download']);
     Route::get('/invoices/{invoice}/verify', [InvoiceController::class, 'verify']);
+
+    Route::get('/admin/dashboard', [AdminPortalController::class, 'dashboard']);
 });

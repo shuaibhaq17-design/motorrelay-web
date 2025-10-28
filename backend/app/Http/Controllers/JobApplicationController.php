@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class JobApplicationController extends Controller
 {
@@ -46,6 +48,27 @@ class JobApplicationController extends Controller
         $validated = $request->validate([
             'message' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        $existingApplication = JobApplication::where('job_id', $job->id)
+            ->where('driver_id', $user->id)
+            ->first();
+
+        $planSlug = $user->plan_slug ?? Str::slug((string) $user->plan, '_');
+        if (!$existingApplication && $planSlug === 'starter' && !$user->isAdmin()) {
+            $dailyLimit = config('jobs.plan_limits.starter.daily_applications', 0);
+            if ($dailyLimit) {
+                $applicationsToday = JobApplication::where('driver_id', $user->id)
+                    ->where('created_at', '>=', Carbon::today())
+                    ->count();
+
+                if ($applicationsToday >= $dailyLimit) {
+                    abort(422, sprintf(
+                        'Starter plan allows up to %d applications per day. Please try again tomorrow or upgrade your plan.',
+                        $dailyLimit
+                    ));
+                }
+            }
+        }
 
         $application = JobApplication::updateOrCreate(
             [

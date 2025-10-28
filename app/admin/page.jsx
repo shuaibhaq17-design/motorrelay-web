@@ -129,9 +129,9 @@ const SAMPLE_THREADS = [
 ];
 
 const PLAN_FALLBACKS = [
-  { key: "bronze", name: "Bronze", price: 0, interval: "month", perks: ["Browse jobs", "Send messages", "1 seat"] },
-  { key: "silver", name: "Silver", price: 19, interval: "month", perks: ["Unlimited jobs", "Priority support", "Live tracking"] },
-  { key: "gold", name: "Gold", price: 39, interval: "month", perks: ["Instant payouts", "Advanced analytics", "10 seats"] },
+  { key: "starter", name: "starter", price: 0, interval: "month", perks: ["Browse jobs", "Send messages", "1 seat"] },
+  { key: "gold_driver", name: "gold_driver", price: 19, interval: "month", perks: ["Unlimited jobs", "Priority support", "Live tracking"] },
+  { key: "dealer_pro", name: "dealer_pro", price: 39, interval: "month", perks: ["Instant payouts", "Advanced analytics", "10 seats"] },
 ];
 
 const SAMPLE_DRIVER_LEADERBOARD = [
@@ -140,10 +140,10 @@ const SAMPLE_DRIVER_LEADERBOARD = [
 ];
 
 const SAMPLE_SUBSCRIPTIONS = [
-  { id: "sub-demo-1", plan_key: "bronze", status: "active" },
-  { id: "sub-demo-2", plan_key: "silver", status: "active" },
-  { id: "sub-demo-3", plan_key: "silver", status: "past_due" },
-  { id: "sub-demo-4", plan_key: "gold", status: "active" },
+  { id: "sub-demo-1", plan_key: "starter", status: "active" },
+  { id: "sub-demo-2", plan_key: "gold_driver", status: "active" },
+  { id: "sub-demo-3", plan_key: "gold_driver", status: "past_due" },
+  { id: "sub-demo-4", plan_key: "dealer_pro", status: "active" },
 ];
 
 const CONTENT_DEFAULTS = {

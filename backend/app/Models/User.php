@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -32,6 +33,10 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    protected $appends = [
+        'plan_slug',
+    ];
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -45,6 +50,29 @@ class User extends Authenticatable
     public function isDriver(): bool
     {
         return $this->role === 'driver';
+    }
+
+    public function getPlanSlugAttribute(): ?string
+    {
+        if (!$this->plan) {
+            return null;
+        }
+
+        return Str::slug((string) $this->plan, '_');
+    }
+
+    protected function normalizedPlan(): string
+    {
+        return $this->plan_slug ?? '';
+    }
+
+    public function hasPaidSubscription(): bool
+    {
+        $plan = $this->normalizedPlan();
+        $paidPlans = collect(config('jobs.paid_plans', []))
+            ->map(fn ($value) => Str::slug((string) $value, '_'));
+
+        return $plan !== '' && $paidPlans->contains($plan);
     }
 
     public function assignedJobs(): HasMany
