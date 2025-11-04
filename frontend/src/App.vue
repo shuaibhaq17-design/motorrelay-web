@@ -2,17 +2,22 @@
   <div class="flex min-h-screen flex-col bg-slate-100">
     <header class="bg-white/90 backdrop-blur shadow-sm">
       <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <RouterLink to="/" class="flex items-center gap-3">
-          <img
-            src="@/assets/logo-icon.svg"
-            alt="MotorRelay logo"
-            class="h-12 w-12 rounded-xl shadow-sm"
-          />
-          <div class="flex flex-col leading-tight text-slate-900">
-            <span class="font-extrabold tracking-wide uppercase">MotorRelay</span>
-            <span class="text-xs font-semibold text-emerald-700 uppercase">Move Smarter</span>
+        <div class="flex items-center gap-3">
+          <div v-if="showBackButton" class="md:hidden">
+            <BackButton />
           </div>
-        </RouterLink>
+          <RouterLink to="/" class="flex items-center gap-3">
+            <img
+              src="@/assets/logo-icon.svg"
+              alt="MotorRelay logo"
+              class="h-12 w-12 rounded-xl shadow-sm"
+            />
+            <div class="flex flex-col leading-tight text-slate-900">
+              <span class="font-extrabold tracking-wide uppercase">MotorRelay</span>
+              <span class="text-xs font-semibold text-emerald-700 uppercase">Move Smarter</span>
+            </div>
+          </RouterLink>
+        </div>
 
         <div class="hidden items-center gap-4 text-sm font-semibold text-slate-600 md:flex">
           <RouterLink
@@ -46,7 +51,7 @@
       </nav>
     </header>
 
-    <main class="mx-auto flex-1 max-w-6xl px-4 pb-24 pt-8 sm:px-6 sm:pb-8 lg:px-8">
+    <main :class="mainContainerClass">
       <nav v-if="breadcrumbs.length" class="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
         <template v-for="(crumb, index) in breadcrumbs" :key="crumb.href ?? index">
           <RouterLink
@@ -74,35 +79,45 @@ import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import BottomNav from '@/components/BottomNav.vue';
+import BackButton from '@/components/BackButton.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const baseMainClasses = 'mx-auto flex-1 max-w-7xl px-4 pb-24 pt-8 sm:px-6 sm:pb-8 lg:px-8';
 
 const navLinks = [
   { to: '/', label: 'Home', exact: true, icon: 'home', showInBottomNav: true },
   { to: '/driver', label: 'Driver', roles: ['driver'] },
+  { to: '/dealer', label: 'Dealer', roles: ['dealer'] },
   { to: '/invoices', label: 'Invoices', roles: ['driver', 'dealer', 'admin'] },
   { to: '/jobs', label: 'Jobs', icon: 'jobs', showInBottomNav: true },
-  { to: '/membership', label: 'Membership' },
+{ to: '/membership', label: 'Membership' },
   { to: '/messages', label: 'Messages', icon: 'messages', showInBottomNav: true },
   { to: '/admin', label: 'Admin', roles: ['admin'], icon: 'admin', showInBottomNav: true },
   { to: '/planner', label: 'Planner', condition: () => auth.hasPlannerAccess },
   { to: '/profile', label: 'Profile', icon: 'profile', showInBottomNav: true }
 ];
 
+const driverDealerAllowedNav = new Set(['/', '/jobs', '/messages', '/profile', '/dealer']);
+
+function canShowLink(link, role) {
+  if (link.roles && !link.roles.includes(role)) {
+    return false;
+  }
+  if (typeof link.condition === 'function' && !link.condition()) {
+    return false;
+  }
+  if (role === 'driver' || role === 'dealer') {
+    return driverDealerAllowedNav.has(link.to);
+  }
+  return true;
+}
+
 const visibleNavLinks = computed(() => {
   if (!auth.isAuthenticated) return [];
   const role = auth.role || null;
-  return navLinks.filter((link) => {
-    if (link.roles && !link.roles.includes(role)) {
-      return false;
-    }
-    if (typeof link.condition === 'function' && !link.condition()) {
-      return false;
-    }
-    return true;
-  });
+  return navLinks.filter((link) => canShowLink(link, role));
 });
 const showLogin = computed(() => !auth.isAuthenticated);
 
@@ -112,15 +127,7 @@ const bottomNavItems = computed(() => {
 
   return navLinks
     .filter((link) => link.showInBottomNav)
-    .filter((link) => {
-      if (link.roles && !link.roles.includes(role)) {
-        return false;
-      }
-      if (typeof link.condition === 'function' && !link.condition()) {
-        return false;
-      }
-      return true;
-    })
+    .filter((link) => canShowLink(link, role))
     .map((link) => ({
       to: link.to,
       label: link.label,
@@ -180,6 +187,9 @@ const breadcrumbs = computed(() => {
 
   return crumbs;
 });
+
+const mainContainerClass = computed(() => baseMainClasses);
+const showBackButton = computed(() => route.path !== '/');
 
 async function handleLogout() {
   await auth.logout();

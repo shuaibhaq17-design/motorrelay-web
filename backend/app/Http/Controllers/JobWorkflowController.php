@@ -236,6 +236,41 @@ class JobWorkflowController extends Controller
         return response()->json($job->fresh());
     }
 
+    public function dealerComplete(Request $request, Job $job, InvoiceFinalizer $finalizer): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user || (!$user->isAdmin() && !$user->isDealer()) || $job->posted_by_id !== $user->id) {
+            abort(403, 'Only the posting dealer can mark this job as completed.');
+        }
+
+        if (!$job->assigned_to_id) {
+            abort(422, 'Assign a driver before completing the job.');
+        }
+
+        if ($job->status === 'completed') {
+            return response()->json([
+                'job' => $job->fresh(),
+                'invoice' => $job->finalizedInvoice,
+            ]);
+        }
+
+        if ($job->completion_status !== 'submitted') {
+            $job->update([
+                'completion_status' => 'submitted',
+                'completion_submitted_at' => now(),
+                'completion_notes' => $request->input('notes', $job->completion_notes),
+            ]);
+        }
+
+        $invoice = $finalizer->finalize($job->fresh(), $user);
+
+        return response()->json([
+            'job' => $job->fresh(),
+            'invoice' => $this->summariseInvoice($invoice),
+        ]);
+    }
+
     public function deliveryProof(Request $request, Job $job)
     {
         $user = $request->user();

@@ -1,1 +1,0 @@
-import{x as s}from"./index-CbeUM-tk.js";async function c(){const{data:t}=await s.get("/jobs/highlights");return t}async function i(t={}){const{data:a}=await s.get("/jobs",{params:t});return a}async function e(t){const{data:a}=await s.get(`/jobs/${t}`);return a}async function r(t,a){const{data:n}=await s.post(`/jobs/${t}/${a}`);return n}export{i as a,e as b,c as f,r as m};

@@ -19,6 +19,12 @@ const demoJobs = [
   { id: 'demo-3', price: 120, pickup_label: 'Leeds', dropoff_label: 'Bradford' }
 ];
 
+const driverHighlights = [
+  'Browse open runs filtered by distance and vehicle type.',
+  'Track applications and get notified when dealers respond.',
+  'Upload PODs and invoices straight from your workspace.'
+];
+
 const auth = useAuthStore();
 const jobs = ref([]);
 const loading = ref(false);
@@ -796,8 +802,55 @@ const showQuickActions = computed(() => {
       </div>
 
       <aside class="flex flex-col gap-4">
-        <div class="rounded-2xl border border-slate-200 bg-white p-0">
-          <ProfileScorecard v-if="auth.role === 'dealer'" />
+        <div v-if="auth.role === 'dealer'" class="rounded-2xl border border-slate-200 bg-white p-0">
+          <ProfileScorecard />
+        </div>
+
+        <div
+          v-if="auth.role === 'driver'"
+          class="tile space-y-4 rounded-2xl border bg-white p-6 text-left"
+        >
+          <div>
+            <h2 class="text-sm font-semibold text-slate-900">Account</h2>
+            <p class="text-sm text-slate-600">
+              Manage your account details and security in the Laravel backend.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            @click="auth.logout"
+          >
+            Logout
+          </button>
+
+          <div class="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+            <header class="flex items-center justify-between">
+              <h3 class="text-base font-semibold text-slate-900">Start earning today</h3>
+              <span class="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                Drivers
+              </span>
+            </header>
+            <p class="text-sm text-slate-600">
+              See jobs near you and apply in minutes. New runs are added daily across the UK marketplace.
+            </p>
+            <ul class="space-y-2 text-sm text-slate-600">
+              <li
+                v-for="highlight in driverHighlights"
+                :key="highlight"
+                class="flex items-start gap-2"
+              >
+                <span class="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                <span>{{ highlight }}</span>
+              </li>
+            </ul>
+            <RouterLink
+              to="/jobs"
+              class="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
+            >
+              Browse jobs
+            </RouterLink>
+          </div>
         </div>
 
         <div class="tile rounded-2xl border bg-white p-4">

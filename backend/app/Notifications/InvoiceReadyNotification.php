@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Models\Invoice;
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class InvoiceReadyNotification extends Notification
@@ -16,7 +17,21 @@ class InvoiceReadyNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['mail', 'database'];
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $url = url('/invoices/' . $this->invoice->id);
+
+        return (new MailMessage())
+            ->subject('Invoice ready — ' . $this->invoice->number)
+            ->greeting('Hi ' . ($notifiable->name ?? 'there'))
+            ->line('An invoice has been generated for your recent MotorRelay job.')
+            ->line('Invoice number: ' . $this->invoice->number)
+            ->line('Total due: ' . number_format((float) $this->invoice->total, 2) . ' ' . strtoupper($this->invoice->currency ?? 'GBP'))
+            ->action('View invoice', $url)
+            ->line('Thank you for partnering with MotorRelay.');
     }
 
     public function toArray(object $notifiable): array

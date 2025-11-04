@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountChangeRequest;
 use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\JobApplication;
@@ -58,6 +59,7 @@ class AdminPortalController extends Controller
             'conversations' => $this->buildConversationsPayload($threads),
             'plans' => $this->buildPlansPayload($users, $invoices),
             'system_health' => $this->buildSystemHealthPayload($jobs, $threads, $applications, $invoices),
+            'account_updates' => $this->buildAccountUpdatesPayload(),
             'content' => $this->buildContentPayload(),
         ]);
     }
@@ -262,6 +264,59 @@ class AdminPortalController extends Controller
                 ],
             ],
             'issues' => [],
+        ];
+    }
+
+    private function buildAccountUpdatesPayload(): array
+    {
+        $pending = AccountChangeRequest::query()
+            ->with(['user:id,name,email,phone,company'])
+            ->where('status', 'pending')
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->map(function (AccountChangeRequest $request) {
+                return [
+                    'id' => $request->id,
+                    'user' => [
+                        'id' => $request->user?->id,
+                        'name' => $request->user?->name,
+                        'email' => $request->user?->email,
+                        'phone' => $request->user?->phone,
+                        'company' => $request->user?->company,
+                    ],
+                    'submitted_at' => optional($request->created_at)->toIso8601String(),
+                    'payload' => $request->payload,
+                ];
+            });
+
+        $recent = AccountChangeRequest::query()
+            ->with(['user:id,name', 'reviewer:id,name'])
+            ->whereIn('status', ['approved', 'rejected'])
+            ->orderByDesc('reviewed_at')
+            ->limit(20)
+            ->get()
+            ->map(function (AccountChangeRequest $request) {
+                return [
+                    'id' => $request->id,
+                    'status' => $request->status,
+                    'user' => [
+                        'id' => $request->user?->id,
+                        'name' => $request->user?->name,
+                    ],
+                    'reviewed_by' => [
+                        'id' => $request->reviewer?->id,
+                        'name' => $request->reviewer?->name,
+                    ],
+                    'reviewed_at' => optional($request->reviewed_at)->toIso8601String(),
+                    'payload' => $request->payload,
+                    'admin_notes' => $request->admin_notes,
+                ];
+            });
+
+        return [
+            'pending' => $pending,
+            'recent' => $recent,
         ];
     }
 

@@ -43,7 +43,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md space-y-6 rounded-2xl border bg-white p-6">
+  <div class="mx-auto w-full max-w-3xl space-y-8 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 lg:p-10">
     <header>
       <h1 class="text-2xl font-bold text-slate-900">Log in</h1>
       <p class="text-sm text-slate-600">

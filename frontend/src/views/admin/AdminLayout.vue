@@ -10,6 +10,7 @@ const tabs = [
   { name: 'admin-overview', label: 'Overview' },
   { name: 'admin-applications', label: 'Applications' },
   { name: 'admin-conversations', label: 'Conversations' },
+  { name: 'admin-account-requests', label: 'Account Updates' },
   { name: 'admin-plans', label: 'Plans & Billing' },
   { name: 'admin-system-health', label: 'System Health' },
   { name: 'admin-content', label: 'Content' }

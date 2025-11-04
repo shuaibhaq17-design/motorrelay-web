@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AccountChangeRequestController;
+use App\Http\Controllers\AdminAccountChangeController;
 use App\Http\Controllers\AdminPortalController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DriverDashboardController;
@@ -24,6 +26,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/profile', [UserProfileController::class, 'show']);
     Route::get('/driver/overview', [DriverDashboardController::class, 'show']);
+    Route::get('/account/change-requests', [AccountChangeRequestController::class, 'index']);
+    Route::post('/account/change-requests', [AccountChangeRequestController::class, 'store']);
 
     Route::get('/jobs', [JobController::class, 'index']);
     Route::post('/jobs', [JobController::class, 'store']);
@@ -51,6 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/jobs/{job}/complete', [JobWorkflowController::class, 'complete']);
     Route::post('/jobs/{job}/completion/approve', [JobWorkflowController::class, 'approveCompletion']);
     Route::post('/jobs/{job}/completion/reject', [JobWorkflowController::class, 'rejectCompletion']);
+    Route::post('/jobs/{job}/dealer-complete', [JobWorkflowController::class, 'dealerComplete']);
     Route::post('/jobs/{job}/location-update', [JobTrackingController::class, 'store']);
     Route::get('/jobs/{job}/delivery-proof', [JobWorkflowController::class, 'deliveryProof']);
 
@@ -65,4 +70,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/invoices/{invoice}/verify', [InvoiceController::class, 'verify']);
 
     Route::get('/admin/dashboard', [AdminPortalController::class, 'dashboard']);
+    Route::get('/admin/account-change-requests', [AdminAccountChangeController::class, 'index']);
+    Route::post('/admin/account-change-requests/{accountChangeRequest}/decision', [AdminAccountChangeController::class, 'decide']);
 });

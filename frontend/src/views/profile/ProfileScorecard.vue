@@ -125,8 +125,8 @@ function formatPrice(value) {
 </script>
 
 <template>
-  <section class="tile grid gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-[200px,1fr]">
-    <div class="space-y-4 md:self-start">
+  <section class="tile grid gap-6 overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm 2xl:grid-cols-[220px,1fr]">
+    <div class="space-y-4 2xl:self-start">
       <div class="grid h-40 w-40 place-items-center rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
         Photo
       </div>
@@ -135,10 +135,10 @@ function formatPrice(value) {
       </p>
     </div>
 
-    <div class="flex w-full flex-col gap-4 md:col-start-2 md:self-start">
+    <div class="flex w-full min-w-0 flex-col gap-4 2xl:col-start-2 2xl:self-start">
       <header class="border-b border-slate-100 pb-4">
         <h2 class="text-xl font-semibold text-slate-900">{{ displayName }}</h2>
-        <p class="text-sm text-slate-600">
+        <p class="break-words text-sm text-slate-600">
           {{ primaryEmail }} &bull; {{ roleLabel }}
         </p>
         <p class="mt-2 text-sm font-semibold text-emerald-600">
@@ -154,7 +154,7 @@ function formatPrice(value) {
       </div>
 
       <template v-else>
-        <div class="grid w-full gap-3 sm:grid-cols-2 md:grid-cols-3">
+        <div class="grid w-full min-w-0 max-w-[560px] gap-3 grid-cols-1 justify-items-stretch 2xl:grid-cols-2 2xl:mx-auto">
           <article
             v-for="metric in metricCards"
             :key="metric.label"
@@ -167,7 +167,7 @@ function formatPrice(value) {
           </article>
         </div>
 
-        <section class="rounded-2xl border border-slate-200 bg-white p-4">
+        <section class="min-w-0 max-w-[560px] rounded-2xl border border-slate-200 bg-white p-4 2xl:mx-auto">
           <header class="mb-3 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-slate-900">Recent jobs</h3>
             <span v-if="hasJobs" class="text-xs text-slate-500">Last {{ recentJobCount }} shown</span>
@@ -208,10 +208,10 @@ function formatPrice(value) {
           Recent reviews: <i>Reliable, careful with EVs, good comms.</i>
         </p>
 
-        <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <section class="min-w-0 max-w-[560px] rounded-2xl border border-slate-200 bg-slate-50 p-4 2xl:mx-auto">
           <h3 class="text-sm font-semibold text-slate-900">Updates</h3>
           <ul class="mt-3 space-y-1 text-sm text-slate-600">
-            <li v-for="(item, index) in updates" :key="index">
+            <li v-for="(item, index) in updates" :key="index" class="break-words">
               {{ item }}
             </li>
           </ul>

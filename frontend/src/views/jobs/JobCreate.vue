@@ -4,10 +4,17 @@ import { useRouter } from 'vue-router';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
 
+const props = defineProps({
+  id: {
+    type: [String, Number],
+    default: null
+  }
+});
+
 const router = useRouter();
 const auth = useAuthStore();
 
-const form = reactive({
+const defaultFormState = {
   title: '',
   pickup_postcode: '',
   dropoff_postcode: '',
@@ -20,10 +27,14 @@ const form = reactive({
   delivery_time: '',
   is_urgent: false,
   urgent_fee_ack: false
-});
+};
+
+const form = reactive({ ...defaultFormState });
 
 const submitting = ref(false);
 const errorMessage = ref('');
+const loading = ref(false);
+const loadError = ref('');
 
 const transportOptions = [
   {
@@ -41,6 +52,15 @@ const transportOptions = [
 const selectedTransport = computed(() => {
   return transportOptions.find((option) => option.value === form.transport_type) ?? transportOptions[0];
 });
+
+const jobId = computed(() => {
+  if (props.id === null || props.id === undefined || props.id === '') {
+    return null;
+  }
+  return String(props.id);
+});
+
+const isEdit = computed(() => Boolean(jobId.value));
 
 const paidPlans = ['gold_driver', 'dealer_pro'];
 const planSlug = computed(() => (auth.planSlug || auth.user?.plan_slug || '').toLowerCase());
@@ -121,6 +141,10 @@ async function submit() {
     errorMessage.value = 'You need to log in as a dealer to create jobs.';
     return;
   }
+  if (isEdit.value && auth.role !== 'dealer') {
+    errorMessage.value = 'Only dealers can edit jobs.';
+    return;
+  }
 
   submitting.value = true;
   errorMessage.value = '';
@@ -137,7 +161,7 @@ async function submit() {
       throw new Error('Delivery due time must be after the pickup ready time.');
     }
 
-    await api.post('/jobs', {
+    const payload = {
       title: form.title,
       pickup_postcode: form.pickup_postcode,
       dropoff_postcode: form.dropoff_postcode,
@@ -148,18 +172,87 @@ async function submit() {
       delivery_due_at: buildDateTime(form.delivery_date, form.delivery_time),
       is_urgent: form.is_urgent,
       urgent_accept_fee: requiresUrgentAcknowledgement.value ? form.urgent_fee_ack : false
-    });
+    };
 
-    await auth.fetchMe().catch(() => null);
-    router.push({ name: 'jobs' });
+    if (isEdit.value) {
+      await api.patch(`/jobs/${jobId.value}`, payload);
+      await auth.fetchMe().catch(() => null);
+      router.push({ name: 'job-detail', params: { id: jobId.value } });
+    } else {
+      await api.post('/jobs', payload);
+      await auth.fetchMe().catch(() => null);
+      router.push({ name: 'jobs' });
+    }
   } catch (error) {
     console.error('Failed to create job', error);
     errorMessage.value =
       error.response?.data?.message ||
       error.message ||
-      'Could not create job. Please check the form.';
+      'Could not save job. Please check the form.';
   } finally {
     submitting.value = false;
+  }
+}
+
+function resetForm() {
+  Object.assign(form, { ...defaultFormState });
+}
+
+function splitDateTime(value) {
+  if (!value) {
+    return { date: '', time: '' };
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { date: '', time: '' };
+  }
+  const pad = (num) => String(num).padStart(2, '0');
+  const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return { date: datePart, time: timePart };
+}
+
+async function loadJobForEditing() {
+  if (!isEdit.value) {
+    resetForm();
+    return;
+  }
+
+  loading.value = true;
+  loadError.value = '';
+
+  try {
+    const { data } = await api.get(`/jobs/${jobId.value}`);
+    const job = data?.data ?? data ?? null;
+    if (!job) {
+      throw new Error('Job not found.');
+    }
+
+    const pickup = splitDateTime(job.pickup_ready_at);
+    const dropoff = splitDateTime(job.delivery_due_at);
+
+    Object.assign(form, {
+      title: job.title || '',
+      pickup_postcode: job.pickup_postcode || '',
+      dropoff_postcode: job.dropoff_postcode || '',
+      vehicle_make: job.vehicle_make || '',
+      price: job.price != null ? String(job.price) : '',
+      transport_type: job.transport_type || 'drive_away',
+      pickup_date: pickup.date,
+      pickup_time: pickup.time,
+      delivery_date: dropoff.date,
+      delivery_time: dropoff.time,
+      is_urgent: Boolean(job.is_urgent),
+      urgent_fee_ack: Boolean(job.is_urgent)
+    });
+  } catch (error) {
+    console.error('Failed to load job for editing', error);
+    loadError.value =
+      error.response?.data?.message ||
+      error.message ||
+      'We could not load this job for editing.';
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -167,19 +260,45 @@ onMounted(() => {
   if (!auth.user && auth.token) {
     auth.fetchMe().catch(() => null);
   }
+  if (isEdit.value) {
+    loadJobForEditing();
+  }
 });
+
+watch(
+  () => jobId.value,
+  (next, prev) => {
+    if (next !== prev) {
+      if (next) {
+        loadJobForEditing();
+      } else {
+        resetForm();
+      }
+    }
+  }
+);
 </script>
 
 <template>
   <div class="mx-auto max-w-2xl space-y-6 rounded-2xl border bg-white p-6">
     <header>
-      <h1 class="text-2xl font-bold text-slate-900">Create Job</h1>
+      <h1 class="text-2xl font-bold text-slate-900">
+        {{ isEdit ? 'Edit Job' : 'Create Job' }}
+      </h1>
       <p class="text-sm text-slate-600">
-        Include pick-up, drop-off, vehicle details, price, and transport type.
+        {{ isEdit ? 'Update pickup, drop-off, vehicle details, price, and transport type.' : 'Include pick-up, drop-off, vehicle details, price, and transport type.' }}
       </p>
     </header>
 
-    <form class="space-y-4" @submit.prevent="submit">
+    <div v-if="loading" class="rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
+      Loading job details...
+    </div>
+
+    <p v-else-if="loadError" class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+      {{ loadError }}
+    </p>
+
+    <form v-else class="space-y-4" @submit.prevent="submit">
       <div v-if="starterUsageInfo" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-800">
         <p class="font-semibold text-emerald-900">Starter plan usage</p>
         <p class="mt-1">Job posts this month: {{ starterUsageInfo.jobUsed }}<span v-if="starterUsageInfo.jobLimit"> / {{ starterUsageInfo.jobLimit }}</span></p>

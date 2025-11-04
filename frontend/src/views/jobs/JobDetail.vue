@@ -15,7 +15,8 @@ import {
   rejectJobCompletion,
   downloadExpenseReceipt,
   downloadDeliveryProof,
-  updateJobLocation
+  updateJobLocation,
+  dealerCompleteJob
 } from "@/services/jobs";
 import { useAuthStore } from "@/stores/auth";
 
@@ -66,6 +67,7 @@ const trackingState = reactive({
   lastUpdate: null
 });
 const navigationModalOpen = ref(false);
+const dealerCompletionLoading = ref(false);
 
 const priceFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -393,6 +395,13 @@ const canApproveCompletion = computed(() => {
 const hasDeliveryProof = computed(() => Boolean(job.value?.delivery_proof_path));
 
 const invoiceFinalized = computed(() => Boolean(job.value?.finalized_invoice_id));
+const canDealerComplete = computed(() => {
+  if (!job.value || !isDealerForJob.value) return false;
+  const status = String(job.value.status || '').toLowerCase();
+  if (invoiceFinalized.value) return false;
+  const allowed = new Set(["accepted", "in_progress", "collected", "in_transit", "delivered", "completion_pending"]);
+  return allowed.has(status);
+});
 
 const myApplication = computed(() => job.value?.my_application ?? null);
 
@@ -659,6 +668,30 @@ async function handleRejectCompletion() {
   }
 }
 
+async function handleDealerComplete() {
+  if (!job.value || !canDealerComplete.value || dealerCompletionLoading.value) return;
+
+  const confirm = window.confirm('Mark this job as completed and issue the invoice? This will notify the driver.');
+  if (!confirm) {
+    return;
+  }
+
+  dealerCompletionLoading.value = true;
+  try {
+    const response = await dealerCompleteJob(job.value.id);
+    if (response?.job) {
+      job.value = response.job;
+    } else {
+      await loadJob();
+    }
+  } catch (error) {
+    console.error('Failed to complete job as dealer', error);
+    alert(error.response?.data?.message || 'Unable to mark this job as completed.');
+  } finally {
+    dealerCompletionLoading.value = false;
+  }
+}
+
 async function handleDownloadProof() {
   if (!job.value) return;
 
@@ -758,10 +791,20 @@ watch(
         v-if="shouldShowGoLiveBanner"
         class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
       >
-        <div class="font-semibold text-amber-900">Scheduled to go live soon</div>
+        <div class="font-semibold text-amber-900 flex items-center justify-between gap-3">
+          <span>Scheduled to go live soon</span>
+          <RouterLink
+            v-if="isDealerForJob"
+            :to="{ name: 'job-edit', params: { id: job.id } }"
+            class="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+          >
+            Edit job
+            <span aria-hidden="true">→</span>
+          </RouterLink>
+        </div>
         <p class="mt-1">
           This job will become visible to drivers at
-          <strong>{{ goLiveFormatted }}</strong>. You can make changes from the Jobs page until then.
+          <strong>{{ goLiveFormatted }}</strong>. You can still make changes for the next few minutes before it publishes.
         </p>
       </section>
 
@@ -823,6 +866,25 @@ watch(
               No driver assigned
             </option>
           </select>
+        </div>
+
+        <div
+          v-if="canDealerComplete"
+          class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
+        >
+          <div class="flex-1">
+            <p class="font-semibold text-emerald-900">Destination reached?</p>
+            <p>Mark this job as completed and trigger the driver invoice.</p>
+          </div>
+          <button
+            type="button"
+            class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            :disabled="dealerCompletionLoading"
+            @click="handleDealerComplete"
+          >
+            <span v-if="dealerCompletionLoading">Processing...</span>
+            <span v-else>Mark job completed</span>
+          </button>
         </div>
       </section>
 

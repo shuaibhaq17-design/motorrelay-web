@@ -37,6 +37,21 @@ const routes = [
     }
   },
   {
+    path: '/jobs/:id/edit',
+    name: 'job-edit',
+    component: () => import('../views/jobs/JobCreate.vue'),
+    props: true,
+    meta: {
+      requiresRole: 'dealer',
+      breadcrumb: (route) => [
+        { label: 'Jobs', to: '/jobs' },
+        {
+          label: route.params.id ? `Edit Job ${route.params.id}` : 'Edit Job'
+        }
+      ]
+    }
+  },
+  {
     path: '/jobs/:id',
     name: 'job-detail',
     component: () => import('../views/jobs/JobDetail.vue'),
@@ -57,6 +72,15 @@ const routes = [
     meta: {
       breadcrumb: 'Driver workspace',
       requiresRole: 'driver'
+    }
+  },
+  {
+    path: '/dealer',
+    name: 'dealer-dashboard',
+    component: () => import('../views/dealer/DealerDashboard.vue'),
+    meta: {
+      breadcrumb: 'Dealer workspace',
+      requiresRole: 'dealer'
     }
   },
   {
@@ -84,11 +108,52 @@ const routes = [
     }
   },
   {
+    path: '/account',
+    name: 'account-settings',
+    component: () => import('../views/account/AccountSettings.vue'),
+    meta: {
+      breadcrumb: 'Account settings'
+    }
+  },
+  {
     path: '/profile',
     name: 'profile',
     component: () => import('../views/profile/ProfileOverview.vue'),
     meta: {
       breadcrumb: 'Profile'
+    }
+  },
+  {
+    path: '/profile/completed',
+    name: 'profile-completed',
+    component: () => import('../views/profile/ProfileCompletedJobs.vue'),
+    meta: {
+      breadcrumb: [
+        { label: 'Profile', to: '/profile' },
+        { label: 'Completed jobs' }
+      ]
+    }
+  },
+  {
+    path: '/profile/membership',
+    name: 'profile-membership',
+    component: () => import('../views/profile/ProfileMembership.vue'),
+    meta: {
+      breadcrumb: [
+        { label: 'Profile', to: '/profile' },
+        { label: 'Membership' }
+      ]
+    }
+  },
+  {
+    path: '/legal',
+    name: 'legal',
+    component: () => import('../views/legal/LegalView.vue'),
+    meta: {
+      breadcrumb: [
+        { label: 'Profile', to: '/profile' },
+        { label: 'Legal & compliance' }
+      ]
     }
   },
   {
@@ -124,6 +189,15 @@ const routes = [
         component: () => import('../views/admin/AdminConversations.vue'),
         meta: {
           breadcrumb: 'Conversations',
+          requiresRole: 'admin'
+        }
+      },
+      {
+        path: 'account-requests',
+        name: 'admin-account-requests',
+        component: () => import('../views/admin/AdminAccountRequests.vue'),
+        meta: {
+          breadcrumb: 'Account updates',
           requiresRole: 'admin'
         }
       },

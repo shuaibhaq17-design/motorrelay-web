@@ -143,7 +143,7 @@ const isDriver = computed(() => auth.role === 'driver');
 const isDealer = computed(() => auth.role === 'dealer');
 const isAdmin = computed(() => auth.role === 'admin');
 const showActiveSection = computed(() => isDriver.value || isDealer.value || isAdmin.value);
-const showCompletedSection = computed(() => isDriver.value || isDealer.value || isAdmin.value);
+const showCompletedSection = computed(() => false);
 
 function hasApplied(jobId) {
   return appliedJobIds.value.has(jobId);
@@ -222,19 +222,6 @@ function closeConfirmDialog() {
   confirmDialog.pending = false;
 }
 
-function formatShortDate(value) {
-  if (!value) return '--';
-  try {
-    return new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
 function formatTransportType(value) {
   const normalized = (value || '').toString().toLowerCase();
   if (normalized === 'trailer') {
@@ -258,7 +245,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="grid gap-6 lg:grid-cols-[3fr_1fr]">
+    <div class="space-y-4">
     <div class="flex flex-col justify-between gap-3 md:flex-row md:items-center">
       <div>
         <h1 class="text-2xl font-bold text-slate-900">Jobs</h1>
@@ -285,6 +273,27 @@ onMounted(async () => {
     </div>
 
     <p v-if="errorMessage" class="text-sm text-amber-600">{{ errorMessage }}</p>
+
+    <section
+      v-if="auth.hasPlannerAccess"
+      class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+    >
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-900">Planner</h2>
+          <p class="text-sm text-slate-600">
+            Coordinate routes and reserve driver time before posting or assigning new runs.
+          </p>
+        </div>
+        <RouterLink
+          to="/planner"
+          class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Open planner
+          <span aria-hidden="true">→</span>
+        </RouterLink>
+      </div>
+    </section>
 
     <p
       v-if="successMessage"
@@ -317,11 +326,11 @@ onMounted(async () => {
       <div v-else-if="!activeJobs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
         You have no active jobs right now.
       </div>
-      <div v-else class="grid gap-3">
+      <div v-else class="space-y-4">
         <article
           v-for="job in activeJobs"
           :key="`active-${job.id}`"
-          class="tile flex flex-col gap-3 p-4"
+          class="tile flex flex-col gap-3 p-6"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -367,6 +376,13 @@ onMounted(async () => {
             >
               View details
             </button>
+            <RouterLink
+              v-if="isDealer"
+              :to="`/jobs/${job.id}/edit`"
+              class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Edit job
+            </RouterLink>
             <button
               type="button"
               class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
@@ -391,102 +407,9 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="showCompletedSection" class="space-y-3">
-      <header class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-slate-900">
-          {{ isDriver ? 'Completed jobs' : 'Recent completed jobs' }}
-        </h2>
-        <span class="text-xs font-semibold text-slate-500">
-          {{ completedJobs.length }} total
-        </span>
-      </header>
-
-      <p v-if="completedErrorMessage" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-        {{ completedErrorMessage }}
-      </p>
-
-      <div v-if="completedLoading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
-        Loading completed jobs...
-      </div>
-      <div
-        v-else-if="!completedJobs.length"
-        class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600"
-      >
-        No completed jobs yet.
-      </div>
-      <div v-else class="grid gap-3 md:grid-cols-2">
-        <article
-          v-for="job in completedJobs"
-          :key="`completed-${job.id}`"
-          class="tile flex flex-col gap-3 p-4"
-        >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p class="text-lg font-semibold text-slate-900">
-                {{ job.title || `Job #${job.id}` }}
-              </p>
-                <p class="text-sm text-slate-600">
-                  {{ job.pickup_postcode || '--' }} -> {{ job.dropoff_postcode || '--' }}
-                </p>
-                <p class="text-xs text-slate-500">
-                  Completed {{ formatShortDate(job.completed_at || job.updated_at) }}
-                </p>
-                <p class="text-xs text-slate-500" v-if="job.assigned_to?.name">
-                  Driver: {{ job.assigned_to.name }}
-                </p>
-                <p class="text-xs text-slate-500" v-else-if="job.posted_by?.name">
-                  Dealer: {{ job.posted_by.name }}
-                </p>
-                <p
-                  v-if="job.finalized_invoice_id"
-                  class="text-xs font-semibold text-emerald-600"
-                >
-                  Invoice {{ job.finalized_invoice?.number || job.finalized_invoice_id }} sent
-                </p>
-                <p
-                  v-else-if="!isDriver"
-                  class="text-xs text-amber-600"
-                >
-                  Awaiting driver invoice
-                </p>
-              </div>
-              <div class="text-right">
-                <div class="text-lg font-bold text-emerald-600">
-                  {{ priceFormatter.format(Number(job.price ?? 0)) }}
-                </div>
-              <span class="badge bg-slate-200 text-slate-700">{{ job.status }}</span>
-            </div>
-          </div>
-
-            <div class="flex flex-wrap gap-2">
-              <button
-                type="button"
-                class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                @click="openJob(job)"
-              >
-                View details
-              </button>
-              <button
-                v-if="isDriver && !job.finalized_invoice_id"
-                type="button"
-                class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                :disabled="isActionPending(job.id, 'invoice')"
-                @click="openConfirmDialog(job, 'invoice')"
-              >
-                <span v-if="isActionPending(job.id, 'invoice')">Sending...</span>
-                <span v-else>Send invoice</span>
-              </button>
-              <RouterLink
-                v-if="job.finalized_invoice_id"
-                :to="{ name: 'invoices' }"
-                class="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-              >
-                View invoice
-              </RouterLink>
-            </div>
-          </article>
-        </div>
-      </section>
+    <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+      Looking for historical runs? <RouterLink to="/profile" class="font-semibold text-emerald-600 hover:underline">View completed jobs in your profile</RouterLink>.
+    </div>
 
     <section class="space-y-3">
       <header class="flex items-center justify-between" v-if="isDriver">
@@ -504,12 +427,12 @@ onMounted(async () => {
         No jobs here yet.
       </div>
 
-      <div v-else class="grid gap-4 md:grid-cols-2">
+      <div v-else class="space-y-4">
         <button
           v-for="job in visibleJobs"
           :key="job.id"
           type="button"
-          class="tile w-full cursor-pointer text-left p-4 transition hover:-translate-y-0.5 hover:shadow-md"
+          class="tile w-full cursor-pointer text-left p-6 transition hover:-translate-y-0.5 hover:shadow-md"
           @click="openJob(job)"
         >
           <div class="flex items-start justify-between gap-3">
@@ -549,6 +472,26 @@ onMounted(async () => {
         </button>
       </div>
     </section>
+    </div>
+
+    <aside class="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-sm font-semibold text-slate-900">Job tips</h2>
+      <p class="text-sm text-slate-600">
+        Keep your pipeline organised: move delivered runs to invoices immediately and reserve capacity in the planner.
+      </p>
+      <RouterLink
+        to="/profile/completed"
+        class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+      >
+        View completed jobs
+      </RouterLink>
+      <RouterLink
+        to="/planner"
+        class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+      >
+        Open planner
+      </RouterLink>
+    </aside>
   </div>
 
   <div

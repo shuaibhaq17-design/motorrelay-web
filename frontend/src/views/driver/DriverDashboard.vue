@@ -64,11 +64,21 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <header class="space-y-3">
-      <h1 class="text-2xl font-bold text-slate-900">Driver dashboard</h1>
-      <p class="text-sm text-slate-600">
-        Track your active runs, check pending applications, and review completed deliveries.
-      </p>
+    <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div class="space-y-1">
+        <h1 class="text-2xl font-bold text-slate-900">Driver dashboard</h1>
+        <p class="text-sm text-slate-600">
+          Track your active runs, check pending applications, and review completed deliveries.
+        </p>
+      </div>
+      <RouterLink
+        v-if="auth.hasPlannerAccess"
+        to="/planner"
+        class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+      >
+        Open planner
+        <span aria-hidden="true">→</span>
+      </RouterLink>
     </header>
 
     <div v-if="loading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
@@ -80,7 +90,7 @@ onMounted(async () => {
     </p>
 
     <template v-else>
-      <section class="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <section class="grid grid-cols-3 gap-3 lg:grid-cols-4">
         <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Active jobs</h2>
           <p class="mt-2 text-2xl font-bold text-slate-900">
@@ -99,12 +109,52 @@ onMounted(async () => {
             {{ stats.pending_applications ?? 0 }}
           </p>
         </article>
-        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm col-span-3 lg:col-span-1">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total earnings</h2>
           <p class="mt-2 text-2xl font-bold text-slate-900">
             {{ formatPrice(stats.total_earnings ?? 0) }}
           </p>
         </article>
+        <article
+          v-if="auth.hasPlannerAccess"
+          class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm col-span-3 lg:col-span-1"
+        >
+          <h2 class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Planner status</h2>
+          <p class="mt-2 text-base font-semibold text-emerald-900">
+            Keep your availability synced with upcoming runs.
+          </p>
+          <RouterLink
+            to="/planner"
+            class="mt-3 inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100/60"
+          >
+            Manage schedule
+            <span aria-hidden="true">→</span>
+          </RouterLink>
+        </article>
+      </section>
+
+      <section
+        v-if="auth.hasPlannerAccess"
+        class="rounded-2xl border border-slate-200 bg-white p-6 space-y-3"
+      >
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Planner quick access</h2>
+            <p class="text-xs text-slate-500">
+              Block out your calendar, pin pick-ups, and hold delivery slots before accepting new work.
+            </p>
+          </div>
+          <RouterLink
+            to="/planner"
+            class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Open planner
+            <span aria-hidden="true">→</span>
+          </RouterLink>
+        </div>
+        <p class="text-xs text-slate-500">
+          Saved routes and holds appear in the planner view. Update it daily to keep dealers in sync with your availability.
+        </p>
       </section>
 
       <section class="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">

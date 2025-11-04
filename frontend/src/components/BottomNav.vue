@@ -55,6 +55,17 @@ function isActive(item) {
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 7.5V6A1.5 1.5 0 0 1 10.5 4.5h3A1.5 1.5 0 0 1 15 6v1.5M5.25 9h13.5a1.5 1.5 0 0 1 1.5 1.5v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5V10.5a1.5 1.5 0 0 1 1.5-1.5Z" />
         </svg>
         <svg
+          v-else-if="item.icon === 'membership'"
+          viewBox="0 0 24 24"
+          class="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.25h13.5v13.5H5.25z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5v9M7.5 12h9" />
+        </svg>
+        <svg
           v-else-if="item.icon === 'messages'"
           viewBox="0 0 24 24"
           class="h-6 w-6"
@@ -77,6 +88,17 @@ function isActive(item) {
           <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 19.875a8.25 8.25 0 0 1 15 0" />
         </svg>
         <svg
+          v-else-if="item.icon === 'invoices'"
+          viewBox="0 0 24 24"
+          class="h-6 w-6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 4.5h10.5A1.5 1.5 0 0 1 18.75 6v12a1.5 1.5 0 0 1-1.5 1.5H6.75A1.5 1.5 0 0 1 5.25 18V6a1.5 1.5 0 0 1 1.5-1.5Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 9h6M9 12h6M9 15h3" />
+        </svg>
+        <svg
           v-else-if="item.icon === 'admin'"
           viewBox="0 0 24 24"
           class="h-6 w-6"
@@ -92,4 +114,3 @@ function isActive(item) {
     </div>
   </nav>
 </template>
-
