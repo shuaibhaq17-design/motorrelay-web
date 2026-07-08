@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 const auth = useAuthStore();
 
 onMounted(() => {
-  if (auth.token && !auth.user) {
+  if (auth.token) {
     auth.fetchMe().catch(() => null);
   }
 });

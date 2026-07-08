@@ -17,7 +17,8 @@ import {
   downloadDeliveryProof,
   updateJobLocation,
   markJobCollected,
-  markJobDelivered
+  markJobDelivered,
+  applyForJob
 } from "@/services/jobs";
 import { createJobCheckout, releaseDriverPayout, syncJobPayment } from "@/services/payments";
 import { useAuthStore } from "@/stores/auth";
@@ -64,6 +65,8 @@ const completionDecisionLoading = ref(false);
 const proofDownloading = ref(false);
 const driverActionLoading = ref("");
 const driverActionError = ref("");
+const jobRequestLoading = ref(false);
+const jobRequestError = ref("");
 
 const trackingState = reactive({
   sending: false,
@@ -479,8 +482,8 @@ const workflowSteps = computed(() => {
         complete: true
       },
       {
-        label: 'Request sent',
-        help: 'Your request will appear here once submitted.',
+        label: myApplication.value ? 'Request sent' : 'Request job',
+        help: myApplication.value ? 'Your request has been sent to the dealer.' : 'Send a request so the dealer can review you.',
         complete: Boolean(myApplication.value)
       },
       {
@@ -574,6 +577,25 @@ const paymentActionHelp = computed(() => {
 });
 
 const myApplication = computed(() => job.value?.my_application ?? null);
+const canRequestJob = computed(() => {
+  if (!job.value || currentRole.value !== "driver") return false;
+  if (job.value.assigned_to_id) return false;
+  if (String(job.value.status || "").toLowerCase() !== "open") return false;
+  return !myApplication.value;
+});
+const showDriverRequestPanel = computed(() => {
+  if (!job.value || currentRole.value !== "driver") return false;
+  if (job.value.assigned_to_id) return false;
+  return String(job.value.status || "").toLowerCase() === "open";
+});
+const requestPanelTitle = computed(() => (myApplication.value ? "Request sent" : "Want this job?"));
+const requestPanelText = computed(() => {
+  if (myApplication.value) {
+    return "Your request has been sent to the dealer. If they choose you, this job will move into your current jobs.";
+  }
+
+  return "Request this job so the dealer can review you and assign the run.";
+});
 
 const transportLabel = computed(() => {
   const raw = (job.value?.transport_type || '').toString().toLowerCase();
@@ -862,6 +884,23 @@ async function handleRejectCompletion() {
   }
 }
 
+async function handleRequestJob() {
+  if (!job.value?.id || !canRequestJob.value) return;
+
+  jobRequestLoading.value = true;
+  jobRequestError.value = "";
+
+  try {
+    await applyForJob(job.value.id);
+    await loadJob();
+  } catch (error) {
+    console.error("Failed to request job", error);
+    jobRequestError.value = error.response?.data?.message || "We could not send your request. Please try again.";
+  } finally {
+    jobRequestLoading.value = false;
+  }
+}
+
 async function handleDriverCollected() {
   if (!job.value?.id || !canMarkCollected.value) return;
 
@@ -1073,6 +1112,38 @@ watch(
         <p class="mt-1">
           This job will become visible to drivers at
           <strong>{{ goLiveFormatted }}</strong>. You can still make changes for the next few minutes before it publishes.
+        </p>
+      </section>
+
+      <section
+        v-if="showDriverRequestPanel"
+        class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm"
+      >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Driver request</p>
+            <h2 class="mt-1 text-xl font-black text-slate-950">{{ requestPanelTitle }}</h2>
+            <p class="mt-1 text-sm text-emerald-900">{{ requestPanelText }}</p>
+          </div>
+          <button
+            v-if="canRequestJob"
+            type="button"
+            class="btn-primary w-full px-5 py-3 text-sm sm:w-auto"
+            :disabled="jobRequestLoading"
+            @click="handleRequestJob"
+          >
+            <span v-if="jobRequestLoading">Sending request...</span>
+            <span v-else>Request this job</span>
+          </button>
+          <span
+            v-else
+            class="inline-flex w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200"
+          >
+            Request sent
+          </span>
+        </div>
+        <p v-if="jobRequestError" class="mt-3 rounded-xl border border-rose-200 bg-white p-3 text-sm text-rose-700">
+          {{ jobRequestError }}
         </p>
       </section>
 

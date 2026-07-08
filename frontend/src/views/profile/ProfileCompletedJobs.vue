@@ -6,7 +6,7 @@ import BackButton from '@/components/BackButton.vue';
 const auth = useAuthStore();
 
 onMounted(() => {
-  if (!auth.user && auth.token) {
+  if (auth.token) {
     auth.fetchMe().catch(() => null);
   }
 });

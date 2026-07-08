@@ -154,10 +154,6 @@ const standoutFeatures = [
     text: 'Every completed job needs delivery proof before approval and invoice download.'
   },
   {
-    title: 'Built-in revenue model',
-    text: 'MotorRelay can earn from platform fees, urgent boosts, dealer plans, and premium driver tools.'
-  },
-  {
     title: 'Operational control',
     text: 'Admin tools track users, jobs, conversations, billing signals, and account change requests.'
   }
