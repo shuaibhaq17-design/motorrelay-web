@@ -380,6 +380,11 @@ const canReviewExpenses = computed(() => {
   if (!canSeeExpenses.value) return false;
   return currentRole.value === "admin" || isDealerForJob.value;
 });
+const shouldShowExpenses = computed(() => {
+  if (!canSeeExpenses.value) return false;
+  if (expenses.value.length > 0) return true;
+  return canSubmitExpenses.value;
+});
 
 const shouldShowGoLiveBanner = computed(
   () => isDealerForJob.value && isAwaitingGoLive.value
@@ -992,13 +997,12 @@ watch(
         </p>
       </section>
 
-      <section class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
-        <div class="tile overflow-hidden p-4">
-          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] md:items-center">
+      <section class="tile overflow-hidden p-4">
+          <div class="grid gap-5 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] md:items-center">
             <div>
               <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Pickup</h2>
-              <p class="text-lg font-bold text-slate-900">{{ job.pickup_label || 'Pickup location' }}</p>
-              <p class="text-sm text-slate-600">{{ job.pickup_postcode || '--' }}</p>
+              <p class="text-2xl font-black text-slate-950">{{ job.pickup_label || job.pickup_postcode || 'Pickup location' }}</p>
+              <p v-if="job.pickup_label && job.pickup_label !== job.pickup_postcode" class="text-sm text-slate-600">{{ job.pickup_postcode || '--' }}</p>
               <p class="mt-3 text-sm text-slate-500">{{ job.pickup_notes || 'No pickup notes provided.' }}</p>
             </div>
 
@@ -1013,31 +1017,26 @@ watch(
 
             <div class="md:text-right">
               <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Drop-off</h2>
-              <p class="text-lg font-bold text-slate-900">{{ job.dropoff_label || 'Drop-off location' }}</p>
-              <p class="text-sm text-slate-600">{{ job.dropoff_postcode || '--' }}</p>
+              <p class="text-2xl font-black text-slate-950">{{ job.dropoff_label || job.dropoff_postcode || 'Drop-off location' }}</p>
+              <p v-if="job.dropoff_label && job.dropoff_label !== job.dropoff_postcode" class="text-sm text-slate-600">{{ job.dropoff_postcode || '--' }}</p>
               <p class="mt-3 text-sm text-slate-500">{{ job.dropoff_notes || 'No delivery notes provided.' }}</p>
             </div>
           </div>
-        </div>
 
-        <div class="tile space-y-2 p-4">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold text-slate-500">Distance</span>
-            <span class="text-base font-semibold text-slate-900">
-              {{ job.distance_mi ? `${job.distance_mi} mi` : '--' }}
-            </span>
-          </div>
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold text-slate-500">Transport type</span>
-              <span class="text-base font-semibold text-slate-900">{{ transportLabel }}</span>
+          <div class="mt-5 grid gap-3 border-t border-slate-100 pt-4 text-sm sm:grid-cols-3">
+            <div class="rounded-2xl bg-slate-50 p-3">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Distance</p>
+              <p class="mt-1 text-base font-black text-slate-950">{{ job.distance_mi ? `${job.distance_mi} mi` : '--' }}</p>
             </div>
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold text-slate-500">Created</span>
-            <span class="text-base font-semibold text-slate-900">
-              {{ job.created_at ? new Date(job.created_at).toLocaleString() : '--' }}
-            </span>
+            <div class="rounded-2xl bg-slate-50 p-3">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Transport type</p>
+              <p class="mt-1 text-base font-black text-slate-950">{{ transportLabel }}</p>
+            </div>
+            <div class="rounded-2xl bg-slate-50 p-3">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Created</p>
+              <p class="mt-1 text-base font-black text-slate-950">{{ job.created_at ? new Date(job.created_at).toLocaleString() : '--' }}</p>
+            </div>
           </div>
-        </div>
       </section>
 
       <section v-if="showApplicationsAtTop" class="tile space-y-4 border-emerald-200 bg-emerald-50/40 p-4">
@@ -1261,7 +1260,7 @@ watch(
         </ol>
       </section>
 
-      <section class="tile p-4">
+      <section v-if="false" class="tile p-4">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Status</h2>
 
         <p class="mt-2 text-sm text-slate-600">
@@ -1445,7 +1444,7 @@ watch(
         </div>
       </section>
 
-      <section v-if="canSeeExpenses" class="tile space-y-4 p-4">
+      <section v-if="shouldShowExpenses" class="tile space-y-4 p-4">
         <header class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Expenses</h2>

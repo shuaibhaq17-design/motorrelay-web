@@ -436,7 +436,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-else class="section-card">
+    <section v-if="isAdmin" class="section-card">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="text-lg font-semibold text-slate-900">Simple workflow</h2>
