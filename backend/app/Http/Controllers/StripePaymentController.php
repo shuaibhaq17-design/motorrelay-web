@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Stripe\Checkout\Session;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\SignatureVerificationException;
+use Stripe\PaymentIntent;
 use Stripe\Stripe;
 use Stripe\StripeClient;
 use Stripe\Transfer;
@@ -271,7 +272,7 @@ class StripePaymentController extends Controller
 
         $this->configureStripe();
 
-        $transfer = Transfer::create([
+        $transferPayload = [
             'amount' => $amount,
             'currency' => config('stripe.currency'),
             'destination' => $driver->stripe_account_id,
@@ -279,7 +280,23 @@ class StripePaymentController extends Controller
                 'job_id' => (string) $job->id,
                 'driver_id' => (string) $driver->id,
             ],
-        ]);
+        ];
+
+        $sourceChargeId = $this->sourceChargeIdForJob($job);
+        if ($sourceChargeId) {
+            $transferPayload['source_transaction'] = $sourceChargeId;
+        }
+
+        try {
+            $transfer = Transfer::create($transferPayload);
+        } catch (ApiErrorException $exception) {
+            return response()->json([
+                'message' => $exception->getStripeCode() === 'balance_insufficient'
+                    ? 'Stripe says the platform balance is not available yet. Try again later, or use Stripe test card 4000000000000077 to add available test balance.'
+                    : 'Stripe could not release this payout.',
+                'stripe_error' => $exception->getMessage(),
+            ], 422);
+        }
 
         $job->forceFill([
             'payment_status' => 'payout_released',
@@ -380,6 +397,29 @@ class StripePaymentController extends Controller
         ])->save();
 
         return $transfersEnabled;
+    }
+
+    protected function sourceChargeIdForJob(Job $job): ?string
+    {
+        if (!$job->stripe_payment_intent_id) {
+            return null;
+        }
+
+        try {
+            $paymentIntent = PaymentIntent::retrieve([
+                'id' => $job->stripe_payment_intent_id,
+                'expand' => ['latest_charge'],
+            ]);
+        } catch (ApiErrorException) {
+            return null;
+        }
+
+        $latestCharge = $paymentIntent->latest_charge ?? null;
+        if (is_string($latestCharge)) {
+            return $latestCharge;
+        }
+
+        return $latestCharge->id ?? null;
     }
 
     protected function configureStripe(): void

@@ -8,12 +8,6 @@ const auth = useAuthStore();
 const jobs = ref([]);
 const loading = ref(false);
 
-const demoJobs = [
-  { id: 'demo-1', price: 72, pickup_label: 'Camden', dropoff_label: 'Croydon', status: 'open' },
-  { id: 'demo-2', price: 95, pickup_label: 'Reading', dropoff_label: 'Guildford', status: 'open' },
-  { id: 'demo-3', price: 120, pickup_label: 'Leeds', dropoff_label: 'Bradford', status: 'open' }
-];
-
 const priceFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
   currency: 'GBP',
@@ -80,7 +74,7 @@ const statCards = computed(() => {
   }
 
   return [
-    { label: 'Open marketplace', value: jobs.value.length || demoJobs.length },
+    { label: 'Open marketplace', value: jobs.value.length },
     { label: 'Live tracking', value: 'Built in' },
     { label: 'Invoices', value: 'PDF ready' }
   ];
@@ -169,7 +163,19 @@ const standoutFeatures = [
   }
 ];
 
-const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs).slice(0, 3));
+const jobsToDisplay = computed(() => jobs.value.slice(0, 3));
+
+const openJobsEmptyText = computed(() => {
+  if (auth.role === 'driver') {
+    return 'No open jobs right now. Check back later for new dealer jobs.';
+  }
+
+  if (auth.role === 'dealer') {
+    return 'No open jobs yet. Create your first job to start receiving driver requests.';
+  }
+
+  return 'No open jobs yet. Jobs will appear here when dealers post them.';
+});
 </script>
 
 <template>
@@ -226,7 +232,7 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
             <RouterLink
               v-for="job in jobsToDisplay"
               :key="job.id"
-              :to="job.id && String(job.id).startsWith('demo') ? '/jobs' : `/jobs/${job.id}`"
+              :to="`/jobs/${job.id}`"
               class="block rounded-2xl border border-white/10 bg-white/[0.06] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.1]"
             >
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -243,6 +249,13 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
                 </span>
               </div>
             </RouterLink>
+
+            <div
+              v-if="!loading && !jobsToDisplay.length"
+              class="rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-sm text-slate-300"
+            >
+              {{ openJobsEmptyText }}
+            </div>
           </div>
         </aside>
       </div>

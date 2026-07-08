@@ -51,8 +51,36 @@ async function loadOverview() {
 
 const stats = computed(() => overview.value?.stats ?? {});
 const activeJobs = computed(() => overview.value?.active ?? []);
+const currentJob = computed(() => activeJobs.value[0] ?? null);
 const completedJobs = computed(() => overview.value?.completed ?? []);
 const pendingApplications = computed(() => overview.value?.applications ?? []);
+
+function jobStatusLabel(status) {
+  return (status || 'in progress').toString().replace(/_/g, ' ');
+}
+
+function currentJobAction(job) {
+  const status = String(job?.status || '').toLowerCase();
+  const completionStatus = String(job?.completion_status || '').toLowerCase();
+
+  if (status === 'in_progress' || status === 'accepted' || status === 'pending') {
+    return 'Open this job and mark the vehicle collected.';
+  }
+
+  if (status === 'collected' || status === 'in_transit') {
+    return 'Open this job and mark the vehicle delivered.';
+  }
+
+  if (status === 'delivered' && completionStatus !== 'submitted') {
+    return 'Open this job and upload delivery proof.';
+  }
+
+  if (completionStatus === 'submitted' || status === 'completion_pending') {
+    return 'Waiting for the dealer to approve your proof.';
+  }
+
+  return 'Open this job to see the next step.';
+}
 
 onMounted(async () => {
   if (!auth.user && auth.token) {
@@ -90,6 +118,60 @@ onMounted(async () => {
     </p>
 
     <template v-else>
+      <section
+        v-if="currentJob"
+        class="overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-5 shadow-sm"
+      >
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div class="space-y-3">
+            <p class="text-xs font-black uppercase tracking-[0.2em] text-emerald-700">Current job</p>
+            <div>
+              <h2 class="text-2xl font-black text-slate-950">
+                {{ currentJob.title || `Job #${currentJob.id}` }}
+              </h2>
+              <p class="mt-1 text-sm text-slate-600">
+                {{ currentJob.pickup_postcode || '--' }} to {{ currentJob.dropoff_postcode || '--' }}
+              </p>
+            </div>
+            <p class="max-w-2xl rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+              {{ currentJobAction(currentJob) }}
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-3 lg:min-w-[420px]">
+            <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Route</p>
+              <p class="mt-1 font-black text-slate-950">
+                {{ currentJob.pickup_postcode || '--' }} → {{ currentJob.dropoff_postcode || '--' }}
+              </p>
+            </div>
+            <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Value</p>
+              <p class="mt-1 font-black text-emerald-700">{{ formatPrice(currentJob.price) }}</p>
+            </div>
+            <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Status</p>
+              <p class="mt-1 font-black capitalize text-slate-950">{{ jobStatusLabel(currentJob.status) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+          <RouterLink
+            :to="`/jobs/${currentJob.id}`"
+            class="btn-primary inline-flex justify-center px-5 py-3 text-sm"
+          >
+            Open current job
+          </RouterLink>
+          <RouterLink
+            to="/jobs"
+            class="btn-secondary inline-flex justify-center px-5 py-3 text-sm"
+          >
+            View all jobs
+          </RouterLink>
+        </div>
+      </section>
+
       <section class="grid grid-cols-3 gap-3 lg:grid-cols-4">
         <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Active jobs</h2>
@@ -175,9 +257,10 @@ onMounted(async () => {
         </div>
 
         <div v-else class="space-y-3">
-          <article
+          <RouterLink
             v-for="job in activeJobs"
             :key="job.id"
+            :to="`/jobs/${job.id}`"
             class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
           >
             <div class="flex flex-wrap items-start justify-between gap-3">
@@ -199,7 +282,7 @@ onMounted(async () => {
                 <span class="badge bg-emerald-100 text-emerald-700">{{ job.status }}</span>
               </div>
             </div>
-          </article>
+          </RouterLink>
         </div>
       </section>
 
