@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink } from 'vue-router';
-import ProfileScorecard from './ProfileScorecard.vue';
 import { disconnectDriverPayoutAccount, startDriverPayoutOnboarding } from '@/services/payments';
 
 const auth = useAuthStore();
@@ -12,6 +11,7 @@ const payoutSetupError = ref('');
 const showDisconnectModal = ref(false);
 
 const isDriver = computed(() => auth.role === 'driver');
+const isDealer = computed(() => auth.role === 'dealer');
 const hasStripePayoutAccount = computed(() => Boolean(auth.user?.stripe_account_id));
 const payoutsEnabled = computed(() => Boolean(auth.user?.stripe_payouts_enabled || auth.user?.stripe_onboarding_complete));
 const payoutCardTitle = computed(() => {
@@ -46,6 +46,39 @@ const starterUsage = computed(() => ({
     limit: planLimits.value.daily_applications ?? null
   }
 }));
+const starterUsageCards = computed(() => {
+  if (!isStarterPlan.value) return [];
+
+  if (isDealer.value) {
+    return [
+      {
+        label: 'Job posts this month',
+        value: starterUsage.value.jobPosts.used,
+        limit: starterUsage.value.jobPosts.limit,
+        description: `Starter includes up to ${starterUsage.value.jobPosts.limit || 5} posts monthly.`
+      },
+      {
+        label: 'Urgent boosts used',
+        value: starterUsage.value.urgentBoosts.used,
+        limit: starterUsage.value.urgentBoosts.limit,
+        description: 'Upgrade for additional boosts per month.'
+      }
+    ];
+  }
+
+  if (isDriver.value) {
+    return [
+      {
+        label: 'Applications today',
+        value: starterUsage.value.applications.used,
+        limit: starterUsage.value.applications.limit,
+        description: 'Starter allows a limited number of daily applications.'
+      }
+    ];
+  }
+
+  return [];
+});
 
 const initials = computed(() => {
   if (!auth.user?.name) return 'MR';
@@ -74,6 +107,46 @@ const completedJobs = computed(() => {
 
 const hasCompletedJobs = computed(() => completedJobs.value.length > 0);
 const recentCompletedJobs = computed(() => completedJobs.value.slice(0, 8));
+const dealerJobs = computed(() => {
+  const jobs = Array.isArray(auth.postedJobs) ? auth.postedJobs : [];
+  return [...jobs].sort((a, b) => {
+    const aTime = new Date(a?.created_at ?? 0).getTime();
+    const bTime = new Date(b?.created_at ?? 0).getTime();
+    return bTime - aTime;
+  });
+});
+const dealerStats = computed(() => {
+  const jobs = dealerJobs.value;
+  return {
+    posted: jobs.length,
+    awaitingDriver: jobs.filter((job) => !job?.assigned_to_id && ['open', 'pending'].includes(String(job?.status || '').toLowerCase())).length,
+    needsPayment: jobs.filter((job) => job?.assigned_to_id && !['paid', 'payout_released'].includes(String(job?.payment_status || 'unpaid').toLowerCase())).length,
+    proofReview: jobs.filter((job) => String(job?.completion_status || '').toLowerCase() === 'submitted').length
+  };
+});
+const recentDealerJobs = computed(() => dealerJobs.value.slice(0, 4));
+const dealerQuickLinks = [
+  {
+    to: '/jobs/new',
+    title: 'Create job',
+    description: 'Post a vehicle movement'
+  },
+  {
+    to: '/jobs',
+    title: 'Manage jobs',
+    description: 'Assign, pay, approve, payout'
+  },
+  {
+    to: '/invoices',
+    title: 'Invoices',
+    description: 'View completed paperwork'
+  },
+  {
+    to: '/messages',
+    title: 'Messages',
+    description: 'Talk to assigned drivers'
+  }
+];
 
 const priceFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
@@ -96,6 +169,20 @@ function formatDate(value) {
   } catch {
     return value;
   }
+}
+
+function dealerNextAction(job) {
+  if (!job?.assigned_to_id) return 'Review driver requests';
+
+  const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
+  const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
+
+  if (paymentStatus === 'unpaid') return 'Take payment';
+  if (paymentStatus === 'checkout_pending') return 'Refresh payment';
+  if (completionStatus === 'submitted') return 'Approve proof';
+  if (paymentStatus === 'paid' && completionStatus === 'approved' && !job?.stripe_transfer_id) return 'Release payout';
+  if (paymentStatus === 'payout_released') return 'Paid out';
+  return 'Track job';
 }
 
 async function handlePayoutSetup() {
@@ -197,33 +284,17 @@ const profileLinks = computed(() => {
             </p>
           </div>
         </div>
-        <div v-if="isStarterPlan" class="grid gap-4 md:grid-cols-3">
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Job posts this month</h3>
+        <div v-if="starterUsageCards.length" class="grid gap-4 md:grid-cols-2">
+          <div
+            v-for="card in starterUsageCards"
+            :key="card.label"
+            class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"
+          >
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ card.label }}</h3>
             <p class="mt-1 text-lg font-semibold text-emerald-900">
-              {{ starterUsage.jobPosts.used }}<span v-if="starterUsage.jobPosts.limit"> / {{ starterUsage.jobPosts.limit }}</span>
+              {{ card.value }}<span v-if="card.limit"> / {{ card.limit }}</span>
             </p>
-            <p class="text-xs text-emerald-700">
-              Starter includes up to {{ starterUsage.jobPosts.limit || 5 }} posts monthly.
-            </p>
-          </div>
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Urgent boosts used</h3>
-            <p class="mt-1 text-lg font-semibold text-emerald-900">
-              {{ starterUsage.urgentBoosts.used }}<span v-if="starterUsage.urgentBoosts.limit"> / {{ starterUsage.urgentBoosts.limit }}</span>
-            </p>
-            <p class="text-xs text-emerald-700">
-              Upgrade for additional boosts per month.
-            </p>
-          </div>
-          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Applications today</h3>
-            <p class="mt-1 text-lg font-semibold text-emerald-900">
-              {{ starterUsage.applications.used }}<span v-if="starterUsage.applications.limit"> / {{ starterUsage.applications.limit }}</span>
-            </p>
-            <p class="text-xs text-emerald-700">
-              Starter allows a limited number of daily applications.
-            </p>
+            <p class="text-xs text-emerald-700">{{ card.description }}</p>
           </div>
         </div>
       </section>
@@ -276,7 +347,92 @@ const profileLinks = computed(() => {
         </p>
       </section>
 
-      <ProfileScorecard v-if="!isDriver" />
+      <section
+        v-if="isDealer"
+        class="rounded-2xl border border-slate-200 bg-white p-6"
+      >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Dealer workspace</p>
+            <h2 class="mt-1 text-xl font-black text-slate-950">Your dealer profile</h2>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Keep this page simple: create jobs, manage payments, review proof, and download invoices.
+            </p>
+          </div>
+          <RouterLink to="/jobs/new" class="btn-primary w-full sm:w-auto">
+            Create job
+          </RouterLink>
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Posted jobs</p>
+            <p class="mt-2 text-2xl font-black text-slate-950">{{ dealerStats.posted }}</p>
+          </div>
+          <div class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Need drivers</p>
+            <p class="mt-2 text-2xl font-black text-emerald-950">{{ dealerStats.awaitingDriver }}</p>
+          </div>
+          <div class="rounded-2xl border border-sky-100 bg-sky-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Need payment</p>
+            <p class="mt-2 text-2xl font-black text-sky-950">{{ dealerStats.needsPayment }}</p>
+          </div>
+          <div class="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+            <p class="text-xs font-bold uppercase tracking-wide text-amber-700">Proof review</p>
+            <p class="mt-2 text-2xl font-black text-amber-950">{{ dealerStats.proofReview }}</p>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <RouterLink
+            v-for="link in dealerQuickLinks"
+            :key="link.to"
+            :to="link.to"
+            class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:-translate-y-0.5 hover:bg-white hover:shadow"
+          >
+            <div class="text-sm font-black text-slate-950">{{ link.title }}</div>
+            <p class="mt-1 text-xs text-slate-600">{{ link.description }}</p>
+          </RouterLink>
+        </div>
+
+        <div class="mt-6">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-black text-slate-950">Recent posted jobs</h3>
+            <RouterLink to="/jobs" class="text-xs font-bold text-emerald-700 hover:text-emerald-800">
+              Manage all
+            </RouterLink>
+          </div>
+
+          <div
+            v-if="!recentDealerJobs.length"
+            class="mt-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600"
+          >
+            No jobs posted yet.
+          </div>
+
+          <div v-else class="mt-3 space-y-3">
+            <RouterLink
+              v-for="job in recentDealerJobs"
+              :key="job.id"
+              :to="`/jobs/${job.id}`"
+              class="block rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-black text-slate-950">{{ job.title || `Job #${job.id}` }}</p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    {{ job.pickup_postcode || 'Pickup' }} to {{ job.dropoff_postcode || 'Drop-off' }}
+                  </p>
+                </div>
+                <span class="badge bg-emerald-100 text-emerald-700">
+                  {{ dealerNextAction(job) }}
+                </span>
+              </div>
+            </RouterLink>
+          </div>
+        </div>
+      </section>
+
       <section class="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 class="text-lg font-semibold text-slate-900">Profile</h2>
         <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -348,9 +504,12 @@ const profileLinks = computed(() => {
       <div>
         <h2 class="text-sm font-semibold text-slate-900">Account</h2>
         <p class="text-sm text-slate-600">
-          Manage your account details and security in the Laravel backend.
+          Manage your account details, legal pages, and sign out securely.
         </p>
       </div>
+      <RouterLink to="/account" class="btn-secondary w-full">
+        Account settings
+      </RouterLink>
       <button
         type="button"
         class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"

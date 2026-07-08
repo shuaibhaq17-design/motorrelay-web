@@ -352,6 +352,7 @@ const canReviewApplications = computed(() => {
   if (currentRole.value === "admin") return true;
   return job.value.posted_by_id === auth.user.id;
 });
+const showApplicationsAtTop = computed(() => canReviewApplications.value && !job.value?.assigned_to_id);
 
 const isDealerForJob = computed(() => {
   if (!job.value || !auth.user) return false;
@@ -402,6 +403,67 @@ const workflowSteps = computed(() => {
   if (!job.value) return [];
   const status = String(job.value.status || '').toLowerCase();
   const deliveredStatuses = new Set(['delivered', 'completion_pending', 'completed', 'closed']);
+  const isAssigned = Boolean(job.value.assigned_to_id);
+  const paymentComplete = ['paid', 'payout_released'].includes(paymentStatus.value);
+  const deliveryComplete = deliveredStatuses.has(status) || completionStatus.value !== 'not_submitted';
+  const proofComplete = hasDeliveryProof.value || ['submitted', 'approved'].includes(completionStatus.value);
+  const approvalComplete = invoiceFinalized.value || completionStatus.value === 'approved';
+  const payoutComplete = paymentStatus.value === 'payout_released';
+
+  if (isAssignedDriver.value) {
+    return [
+      {
+        label: 'Job accepted',
+        help: 'You have been assigned to this vehicle movement.',
+        complete: isAssigned
+      },
+      {
+        label: 'Collect vehicle',
+        help: 'Collect the vehicle from the pickup location.',
+        complete: ['collected', 'in_transit', 'delivered', 'completion_pending', 'completed', 'closed'].includes(status)
+      },
+      {
+        label: 'Deliver vehicle',
+        help: 'Mark the vehicle as delivered when it reaches the drop-off.',
+        complete: deliveryComplete
+      },
+      {
+        label: 'Upload proof',
+        help: 'Upload photo, signed document, or delivery proof.',
+        complete: proofComplete
+      },
+      {
+        label: 'Dealer approval',
+        help: 'The dealer checks your proof and approves completion.',
+        complete: approvalComplete
+      },
+      {
+        label: 'Payout released',
+        help: 'MotorRelay releases your payout after approval.',
+        complete: payoutComplete
+      }
+    ];
+  }
+
+  if (!isDealerForJob.value && currentRole.value !== 'admin') {
+    return [
+      {
+        label: 'Job posted',
+        help: 'This job is available for driver requests.',
+        complete: true
+      },
+      {
+        label: 'Request sent',
+        help: 'Your request will appear here once submitted.',
+        complete: Boolean(myApplication.value)
+      },
+      {
+        label: 'Await dealer',
+        help: 'The dealer chooses which driver to assign.',
+        complete: isAssigned
+      }
+    ];
+  }
 
   return [
     {
@@ -412,36 +474,58 @@ const workflowSteps = computed(() => {
     {
       label: 'Driver assigned',
       help: assignedDriver.value ? `${assignedDriver.value.name} is assigned.` : 'The dealer still needs to choose a driver.',
-      complete: Boolean(job.value.assigned_to_id)
+      complete: isAssigned
     },
     {
       label: 'Dealer payment held',
       help: 'The dealer pays MotorRelay before payout can be released.',
-      complete: ['paid', 'payout_released'].includes(paymentStatus.value)
+      complete: paymentComplete
     },
     {
       label: 'Vehicle delivered',
       help: 'The assigned driver marks the vehicle as delivered.',
-      complete: deliveredStatuses.has(status) || completionStatus.value !== 'not_submitted'
+      complete: deliveryComplete
     },
     {
       label: 'Proof uploaded',
       help: 'The driver uploads delivery proof for dealer review.',
-      complete: hasDeliveryProof.value || ['submitted', 'approved'].includes(completionStatus.value)
+      complete: proofComplete
     },
     {
       label: 'Approved and invoiced',
       help: 'The dealer approves completion and the invoice becomes available.',
-      complete: invoiceFinalized.value || completionStatus.value === 'approved'
+      complete: approvalComplete
     },
     {
       label: 'Driver paid out',
       help: 'MotorRelay releases the driver payout after approval.',
-      complete: paymentStatus.value === 'payout_released'
+      complete: payoutComplete
     }
   ];
 });
+const completedWorkflowCount = computed(() => workflowSteps.value.filter((step) => step.complete).length);
+const workflowProgressPercent = computed(() => {
+  if (!workflowSteps.value.length) return 0;
+  if (workflowSteps.value.length === 1) return workflowSteps.value[0].complete ? 100 : 0;
+  return Math.round((completedWorkflowCount.value / workflowSteps.value.length) * 100);
+});
+const currentWorkflowStep = computed(() => {
+  return workflowSteps.value.find((step) => !step.complete) ?? workflowSteps.value[workflowSteps.value.length - 1] ?? null;
+});
 const paymentStatus = computed(() => job.value?.payment_status || 'unpaid');
+const canManagePayment = computed(() => Boolean(job.value?.assigned_to_id) && (isDealerForJob.value || currentRole.value === 'admin'));
+const jobBasePrice = computed(() => Number(job.value?.price || 0));
+const urgentFeeAmount = computed(() => Number(job.value?.urgent_fee_amount || 0));
+const estimatedPlatformFee = computed(() => Math.round(jobBasePrice.value * 0.1 * 100) / 100);
+const platformFeeAmount = computed(() => {
+  const stored = Number(job.value?.platform_fee_amount || 0);
+  return stored > 0 ? stored : estimatedPlatformFee.value;
+});
+const driverPayoutAmount = computed(() => {
+  const stored = Number(job.value?.driver_payout_amount || 0);
+  return stored > 0 ? stored : Math.max(jobBasePrice.value - platformFeeAmount.value, 0);
+});
+const dealerPaymentAmount = computed(() => jobBasePrice.value + urgentFeeAmount.value);
 const canStartCheckout = computed(() => {
   if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
   if (!job.value.assigned_to_id) return false;
@@ -908,19 +992,32 @@ watch(
         </p>
       </section>
 
-      <section class="grid gap-4 lg:grid-cols-3">
-        <div class="tile p-4">
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Pickup</h2>
-          <p class="text-lg font-bold text-slate-900">{{ job.pickup_label || 'Pickup location' }}</p>
-          <p class="text-sm text-slate-600">{{ job.pickup_postcode || '--' }}</p>
-          <p class="mt-3 text-sm text-slate-500">{{ job.pickup_notes || 'No pickup notes provided.' }}</p>
-        </div>
+      <section class="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+        <div class="tile overflow-hidden p-4">
+          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] md:items-center">
+            <div>
+              <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Pickup</h2>
+              <p class="text-lg font-bold text-slate-900">{{ job.pickup_label || 'Pickup location' }}</p>
+              <p class="text-sm text-slate-600">{{ job.pickup_postcode || '--' }}</p>
+              <p class="mt-3 text-sm text-slate-500">{{ job.pickup_notes || 'No pickup notes provided.' }}</p>
+            </div>
 
-        <div class="tile p-4">
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Drop-off</h2>
-          <p class="text-lg font-bold text-slate-900">{{ job.dropoff_label || 'Drop-off location' }}</p>
-          <p class="text-sm text-slate-600">{{ job.dropoff_postcode || '--' }}</p>
-          <p class="mt-3 text-sm text-slate-500">{{ job.dropoff_notes || 'No delivery notes provided.' }}</p>
+            <div class="relative flex min-h-16 items-center justify-center">
+              <div class="absolute left-3 right-3 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-emerald-200 via-sky-200 to-emerald-200"></div>
+              <div class="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></div>
+              <div class="absolute right-3 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-sky-500 ring-4 ring-sky-100"></div>
+              <div class="route-car-animation relative z-10 grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-lg shadow-lg">
+                🚙
+              </div>
+            </div>
+
+            <div class="md:text-right">
+              <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Drop-off</h2>
+              <p class="text-lg font-bold text-slate-900">{{ job.dropoff_label || 'Drop-off location' }}</p>
+              <p class="text-sm text-slate-600">{{ job.dropoff_postcode || '--' }}</p>
+              <p class="mt-3 text-sm text-slate-500">{{ job.dropoff_notes || 'No delivery notes provided.' }}</p>
+            </div>
+          </div>
         </div>
 
         <div class="tile space-y-2 p-4">
@@ -943,13 +1040,190 @@ watch(
         </div>
       </section>
 
-      <section class="tile space-y-4 p-4">
-        <div>
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Job progress</h2>
-          <p class="mt-1 text-xs text-slate-500">Shows what has happened and what still needs doing.</p>
+      <section v-if="showApplicationsAtTop" class="tile space-y-4 border-emerald-200 bg-emerald-50/40 p-4">
+        <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Next step</p>
+            <h2 class="mt-1 text-lg font-black text-slate-950">Choose a driver</h2>
+            <p class="text-sm text-slate-600">
+              Review applications and assign one driver before taking payment.
+            </p>
+          </div>
+          <span class="badge bg-white text-slate-800">{{ applications.length }} total</span>
+        </header>
+
+        <div v-if="applicationsLoading" class="rounded-xl border bg-white p-4 text-sm text-slate-600">
+          Loading applications...
         </div>
 
-        <ol class="grid gap-3 md:grid-cols-5">
+        <div
+          v-else-if="applicationsError"
+          class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700"
+        >
+          {{ applicationsError }}
+        </div>
+
+        <div v-else-if="!applications.length" class="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-600">
+          No driver applications yet. This section will update when drivers request the job.
+        </div>
+
+        <div v-else class="space-y-3">
+          <article
+            v-for="application in applications"
+            :key="application.id"
+            class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-base font-black text-slate-950">
+                  {{ application.driver?.name || 'Driver' }}
+                </p>
+                <p class="text-xs text-slate-500">
+                  Applied {{ new Date(application.created_at).toLocaleString() }}
+                </p>
+              </div>
+              <span
+                class="badge"
+                :class="{
+                  'bg-emerald-100 text-emerald-700': application.status === 'accepted',
+                  'bg-amber-100 text-amber-700': application.status === 'pending',
+                  'bg-slate-200 text-slate-700': application.status === 'declined'
+                }"
+              >
+                {{ application.status }}
+              </span>
+            </div>
+
+            <p v-if="application.message" class="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+              "{{ application.message }}"
+            </p>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                class="btn-secondary px-4 py-2 text-sm disabled:opacity-60"
+                :disabled="application.status !== 'pending'"
+                @click="handleApplicationDecision(application.id, 'declined')"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                class="btn-primary px-4 py-2 text-sm disabled:opacity-60"
+                :disabled="application.status !== 'pending'"
+                @click="handleApplicationDecision(application.id, 'accepted')"
+              >
+                Accept and assign
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
+        v-if="canManagePayment"
+        class="tile space-y-4 border-sky-200 bg-sky-50/40 p-4"
+      >
+        <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Next step</p>
+            <h2 class="mt-1 text-lg font-black text-slate-950">Take payment</h2>
+            <p class="text-sm text-slate-600">
+              Take dealer payment now. MotorRelay holds it until delivery proof is approved.
+            </p>
+          </div>
+          <span class="badge bg-white text-slate-800 uppercase">{{ paymentStatus }}</span>
+        </header>
+
+        <dl class="grid gap-3 text-sm sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Dealer charge</dt>
+            <dd class="mt-1 font-black text-slate-900">{{ priceFormatter.format(dealerPaymentAmount) }}</dd>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Platform fee</dt>
+            <dd class="mt-1 font-black text-emerald-700">{{ priceFormatter.format(platformFeeAmount) }}</dd>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Driver payout</dt>
+            <dd class="mt-1 font-black text-slate-900">{{ priceFormatter.format(driverPayoutAmount) }}</dd>
+          </div>
+        </dl>
+
+        <p class="text-xs text-slate-500">
+          <span v-if="job.paid_at">Paid {{ formatDateTime(job.paid_at) }}.</span>
+          <span v-else>Not paid yet. Payment is taken after the dealer assigns a driver.</span>
+        </p>
+
+        <p v-if="paymentError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          {{ paymentError }}
+        </p>
+        <p v-if="paymentNotice" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+          {{ paymentNotice }}
+        </p>
+
+        <div class="grid gap-2 sm:flex sm:flex-wrap">
+          <button
+            v-if="canStartCheckout"
+            type="button"
+            class="btn-primary w-full sm:w-auto"
+            :disabled="checkoutLoading"
+            @click="handleCheckout"
+          >
+            <span v-if="checkoutLoading">Opening checkout...</span>
+            <span v-else>Pay for this job</span>
+          </button>
+          <button
+            v-if="paymentStatus === 'checkout_pending'"
+            type="button"
+            class="btn-secondary w-full sm:w-auto"
+            :disabled="checkoutLoading"
+            @click="handlePaymentSync()"
+          >
+            <span v-if="checkoutLoading">Checking payment...</span>
+            <span v-else>Refresh payment status</span>
+          </button>
+          <button
+            v-if="canReleasePayout"
+            type="button"
+            class="btn-primary w-full sm:w-auto"
+            :disabled="payoutReleaseLoading"
+            @click="handleReleasePayout"
+          >
+            <span v-if="payoutReleaseLoading">Releasing payout...</span>
+            <span v-else>Release driver payout</span>
+          </button>
+          <p
+            class="w-full text-xs text-slate-500"
+          >
+            {{ paymentActionHelp }}
+          </p>
+        </div>
+      </section>
+
+      <section class="tile space-y-4 p-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Job progress</h2>
+            <p class="mt-1 text-xs text-slate-500">
+              Next: {{ currentWorkflowStep?.label || 'Complete' }}
+            </p>
+          </div>
+          <span class="badge bg-emerald-100 text-emerald-700">
+            {{ completedWorkflowCount }} / {{ workflowSteps.length }} done
+          </span>
+        </div>
+
+        <div class="relative pt-1">
+          <div class="h-3 overflow-hidden rounded-full bg-slate-100">
+            <div
+              class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-500 transition-all duration-500"
+              :style="{ width: `${workflowProgressPercent}%` }"
+            ></div>
+          </div>
+        </div>
+
+        <ol class="hidden">
           <li
             v-for="step in workflowSteps"
             :key="step.label"
@@ -966,6 +1240,23 @@ watch(
               <h3 class="text-sm font-black">{{ step.label }}</h3>
             </div>
             <p class="mt-2 text-xs leading-5">{{ step.help }}</p>
+          </li>
+        </ol>
+
+        <ol class="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <li
+            v-for="step in workflowSteps"
+            :key="`compact-${step.label}`"
+            class="flex items-center gap-2 rounded-xl px-2 py-1.5"
+            :class="step.complete ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-500'"
+          >
+            <span
+              class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black"
+              :class="step.complete ? 'bg-emerald-600 text-white' : 'bg-white text-slate-400 ring-1 ring-slate-200'"
+            >
+              {{ step.complete ? '✓' : '•' }}
+            </span>
+            <span class="font-bold">{{ step.label }}</span>
           </li>
         </ol>
       </section>
@@ -995,17 +1286,24 @@ watch(
           </select>
         </div>
 
+        <p
+          v-if="(isDealerForJob || currentRole === 'admin') && !job.assigned_to_id"
+          class="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700"
+        >
+          Payment unlocks after you accept and assign a driver. Review applications below first.
+        </p>
+
       </section>
 
       <section
-        v-if="isDealerForJob || currentRole === 'admin'"
+        v-if="false"
         class="tile space-y-4 p-4"
       >
         <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Payment</h2>
             <p class="text-xs text-slate-500">
-              Dealer payment is collected by MotorRelay. Driver payout is released after delivery proof is approved.
+              Take dealer payment now. MotorRelay holds it until delivery proof is approved.
             </p>
           </div>
           <span class="badge bg-slate-100 text-slate-800 uppercase">{{ paymentStatus }}</span>
@@ -1013,18 +1311,23 @@ watch(
 
         <dl class="grid gap-3 text-sm sm:grid-cols-3">
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Dealer charge</dt>
+            <dd class="mt-1 font-black text-slate-900">{{ priceFormatter.format(dealerPaymentAmount) }}</dd>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <dt class="text-xs font-semibold uppercase text-slate-500">Platform fee</dt>
-            <dd class="mt-1 font-black text-emerald-700">{{ priceFormatter.format(Number(job.platform_fee_amount || 0)) }}</dd>
+            <dd class="mt-1 font-black text-emerald-700">{{ priceFormatter.format(platformFeeAmount) }}</dd>
           </div>
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
             <dt class="text-xs font-semibold uppercase text-slate-500">Driver payout</dt>
-            <dd class="mt-1 font-black text-slate-900">{{ priceFormatter.format(Number(job.driver_payout_amount || 0)) }}</dd>
-          </div>
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <dt class="text-xs font-semibold uppercase text-slate-500">Paid</dt>
-            <dd class="mt-1 font-black text-slate-900">{{ job.paid_at ? formatDateTime(job.paid_at) : '--' }}</dd>
+            <dd class="mt-1 font-black text-slate-900">{{ priceFormatter.format(driverPayoutAmount) }}</dd>
           </div>
         </dl>
+
+        <p class="text-xs text-slate-500">
+          <span v-if="job.paid_at">Paid {{ formatDateTime(job.paid_at) }}.</span>
+          <span v-else>Not paid yet. Payment is taken after the dealer assigns a driver.</span>
+        </p>
 
         <p v-if="paymentError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
           {{ paymentError }}
@@ -1497,7 +1800,7 @@ watch(
         </p>
       </section>
 
-      <section v-if="canReviewApplications" class="tile space-y-4 p-4">
+      <section v-if="false" class="tile space-y-4 p-4">
         <header class="flex items-center justify-between">
           <div>
             <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Driver applications</h2>
@@ -1619,3 +1922,35 @@ watch(
     </transition>
   </div>
 </template>
+
+<style scoped>
+.route-car-animation {
+  animation: route-car-drive 2.8s ease-in-out infinite;
+}
+
+@keyframes route-car-drive {
+  0%,
+  100% {
+    transform: translateX(-46px);
+  }
+  50% {
+    transform: translateX(46px);
+  }
+}
+
+@media (max-width: 767px) {
+  .route-car-animation {
+    animation: route-car-drive-mobile 2.8s ease-in-out infinite;
+  }
+
+  @keyframes route-car-drive-mobile {
+    0%,
+    100% {
+      transform: translateX(-70px);
+    }
+    50% {
+      transform: translateX(70px);
+    }
+  }
+}
+</style>

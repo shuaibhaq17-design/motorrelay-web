@@ -160,6 +160,17 @@ const mainJobs = computed(() => {
   if (isDealer.value) return dealerPipelineJobs.value;
   return activeJobs.value;
 });
+const dealerStats = computed(() => ({
+  total: dealerPipelineJobs.value.length,
+  awaitingDriver: dealerPipelineJobs.value.filter((job) => !job?.assigned_to_id).length,
+  needsPayment: dealerPipelineJobs.value.filter((job) => job?.assigned_to_id && !['paid', 'payout_released'].includes(String(job?.payment_status || 'unpaid').toLowerCase())).length,
+  proofReview: dealerPipelineJobs.value.filter((job) => String(job?.completion_status || 'not_submitted').toLowerCase() === 'submitted').length,
+  payoutReady: dealerPipelineJobs.value.filter((job) => {
+    const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
+    const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
+    return paymentStatus === 'paid' && completionStatus === 'approved' && !job?.stripe_transfer_id;
+  }).length
+}));
 const pageIntro = computed(() => {
   if (isDriver.value) {
     return {
@@ -172,8 +183,8 @@ const pageIntro = computed(() => {
   if (isDealer.value) {
     return {
       eyebrow: 'Dealer jobs',
-      title: 'Manage posted jobs',
-      text: 'Create jobs, review driver requests, assign runs, and approve completed work.'
+      title: 'Jobs command centre',
+      text: 'Post jobs, choose drivers, collect payment, approve proof, and release payout.'
     };
   }
 
@@ -189,7 +200,7 @@ const processSteps = computed(() => {
   }
 
   if (isDealer.value) {
-    return ['Create job', 'Review requests', 'Assign driver', 'Approve completion'];
+    return ['Post job', 'Choose driver', 'Take payment', 'Approve proof', 'Release payout'];
   }
 
   return ['Create or request', 'Assign driver', 'Track delivery', 'Close paperwork'];
@@ -222,6 +233,28 @@ function dealerNextAction(job) {
   if (paymentStatus === 'payout_released') return 'Paid out';
   if (['in_progress', 'accepted', 'collected', 'in_transit'].includes(status)) return 'Track delivery';
   return 'View job';
+}
+
+function paymentLabel(job) {
+  const status = String(job?.payment_status || 'unpaid').replace(/_/g, ' ');
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function statusClass(job) {
+  const status = String(job?.status || '').toLowerCase();
+  if (status === 'open') return 'bg-emerald-100 text-emerald-700';
+  if (['in_progress', 'accepted', 'collected', 'in_transit'].includes(status)) return 'bg-sky-100 text-sky-700';
+  if (['completion_pending', 'delivered'].includes(status)) return 'bg-amber-100 text-amber-700';
+  if (['completed', 'closed'].includes(status)) return 'bg-slate-900 text-white';
+  return 'bg-slate-100 text-slate-700';
+}
+
+function paymentClass(job) {
+  const status = String(job?.payment_status || 'unpaid').toLowerCase();
+  if (status === 'paid') return 'bg-emerald-100 text-emerald-700';
+  if (status === 'payout_released') return 'bg-slate-900 text-white';
+  if (status === 'checkout_pending') return 'bg-amber-100 text-amber-700';
+  return 'bg-rose-100 text-rose-700';
 }
 
 function canEditDealerJob(job) {
@@ -326,37 +359,84 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+  <div :class="isDealer ? 'space-y-5' : 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]'">
     <div class="space-y-4">
-    <div class="section-card flex flex-col justify-between gap-4 md:flex-row md:items-center">
-      <div>
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">{{ pageIntro.eyebrow }}</p>
-        <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{{ pageIntro.title }}</h1>
-        <p class="mt-1 text-sm text-slate-600">{{ pageIntro.text }}</p>
+    <div
+      class="section-card overflow-hidden"
+      :class="isDealer ? 'border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-sky-50' : ''"
+    >
+      <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">{{ pageIntro.eyebrow }}</p>
+          <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{{ pageIntro.title }}</h1>
+          <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{{ pageIntro.text }}</p>
+        </div>
+
+        <div class="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <RouterLink
+            v-if="auth.isDealer || auth.role === 'admin'"
+            to="/jobs/new"
+            class="btn-primary w-full sm:w-auto"
+          >
+            Create job
+          </RouterLink>
+
+          <RouterLink
+            v-if="auth.hasPlannerAccess"
+            to="/planner"
+            class="btn-secondary w-full sm:w-auto"
+          >
+            Planner
+          </RouterLink>
+        </div>
       </div>
 
-      <div class="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-        <RouterLink
-          v-if="auth.isDealer || auth.role === 'admin'"
-          to="/jobs/new"
-          class="btn-primary w-full sm:w-auto"
-        >
-          Create job
-        </RouterLink>
-
-        <RouterLink
-          v-if="auth.hasPlannerAccess"
-          to="/planner"
-          class="btn-secondary w-full sm:w-auto"
-        >
-          Planner
-        </RouterLink>
+      <div v-if="isDealer" class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Active jobs</p>
+          <p class="mt-2 text-3xl font-black text-slate-950">{{ dealerStats.total }}</p>
+        </div>
+        <div class="rounded-2xl border border-emerald-100 bg-white/80 p-4 shadow-sm">
+          <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Need drivers</p>
+          <p class="mt-2 text-3xl font-black text-emerald-950">{{ dealerStats.awaitingDriver }}</p>
+        </div>
+        <div class="rounded-2xl border border-sky-100 bg-white/80 p-4 shadow-sm">
+          <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Need payment</p>
+          <p class="mt-2 text-3xl font-black text-sky-950">{{ dealerStats.needsPayment }}</p>
+        </div>
+        <div class="rounded-2xl border border-amber-100 bg-white/80 p-4 shadow-sm">
+          <p class="text-xs font-bold uppercase tracking-wide text-amber-700">Proof review</p>
+          <p class="mt-2 text-3xl font-black text-amber-950">{{ dealerStats.proofReview }}</p>
+        </div>
+        <div class="rounded-2xl border border-violet-100 bg-white/80 p-4 shadow-sm">
+          <p class="text-xs font-bold uppercase tracking-wide text-violet-700">Payout ready</p>
+          <p class="mt-2 text-3xl font-black text-violet-950">{{ dealerStats.payoutReady }}</p>
+        </div>
       </div>
     </div>
 
     <p v-if="errorMessage" class="text-sm text-amber-600">{{ errorMessage }}</p>
 
-    <section class="section-card">
+    <section v-if="isDealer" class="section-card">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 class="text-lg font-black text-slate-950">Dealer workflow</h2>
+          <p class="mt-1 text-sm text-slate-600">Every job should move through these steps.</p>
+        </div>
+        <ol class="grid gap-2 sm:grid-cols-5 lg:min-w-[720px]">
+          <li
+            v-for="(step, index) in processSteps"
+            :key="step"
+            class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-700"
+          >
+            <span class="mb-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-white">{{ index + 1 }}</span>
+            {{ step }}
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section v-else class="section-card">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="text-lg font-semibold text-slate-900">Simple workflow</h2>
@@ -375,7 +455,7 @@ onMounted(async () => {
     </section>
 
     <section
-      v-if="auth.hasPlannerAccess"
+      v-if="auth.hasPlannerAccess && !isDealer"
       class="section-card"
     >
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -408,9 +488,12 @@ onMounted(async () => {
 
     <section v-if="showActiveSection" class="section-card space-y-4">
       <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-lg font-semibold text-slate-900">
+        <h2 class="text-lg font-black text-slate-950">
           {{ isDriver ? 'Your active jobs' : isDealer ? 'Your posted jobs' : 'Active jobs' }}
         </h2>
+        <span v-if="isDealer" class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+          {{ mainJobs.length }} active
+        </span>
         <RouterLink v-if="isDriver" to="/driver" class="text-xs font-semibold text-emerald-600 hover:underline">
           Driver dashboard
         </RouterLink>
@@ -430,37 +513,50 @@ onMounted(async () => {
         <article
           v-for="job in mainJobs"
           :key="`active-${job.id}`"
-          class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg sm:p-5"
+          class="rounded-3xl border p-4 transition hover:-translate-y-0.5 hover:shadow-xl sm:p-5"
+          :class="isDealer ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-200 bg-slate-50/80 hover:bg-white'"
         >
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div class="min-w-0">
-              <p class="text-lg font-semibold text-slate-900">
+          <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div class="min-w-0 flex-1">
+              <div v-if="isDealer" class="mb-3 flex flex-wrap gap-2">
+                <span class="badge" :class="statusClass(job)">{{ job.status }}</span>
+                <span class="badge" :class="paymentClass(job)">{{ paymentLabel(job) }}</span>
+                <span class="badge bg-slate-100 text-slate-700">{{ formatTransportType(job.transport_type) }}</span>
+              </div>
+
+              <p class="text-xl font-black text-slate-950">
                 {{ job.title || `Job #${job.id}` }}
               </p>
-              <p class="text-sm text-slate-600">
-                {{ job.pickup_postcode || '--' }} to {{ job.dropoff_postcode || '--' }}
-              </p>
-              <p class="text-xs text-slate-500">
-                Transport: {{ formatTransportType(job.transport_type) }}
-              </p>
-              <p class="text-xs text-slate-500">
-                <template v-if="isDriver">
-                  {{ job.posted_by?.name ? `Dealer: ${job.posted_by.name}` : 'Dealer' }}
-                </template>
-                <template v-else>
-                  <span v-if="job.assigned_to?.name">Driver: {{ job.assigned_to.name }}</span>
-                  <span v-else>Awaiting driver assignment</span>
-                </template>
-              </p>
-              <p v-if="isDealer" class="mt-2 inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
-                Next: {{ dealerNextAction(job) }}
-              </p>
+
+              <div class="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                <div class="rounded-2xl bg-slate-50 p-3">
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Route</p>
+                  <p class="mt-1 font-semibold text-slate-800">{{ job.pickup_postcode || '--' }} to {{ job.dropoff_postcode || '--' }}</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 p-3">
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Driver</p>
+                  <p class="mt-1 font-semibold text-slate-800">
+                    <template v-if="isDriver">
+                      {{ job.posted_by?.name || 'Dealer' }}
+                    </template>
+                    <template v-else>
+                      {{ job.assigned_to?.name || 'Not assigned yet' }}
+                    </template>
+                  </p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 p-3">
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Next action</p>
+                  <p class="mt-1 font-semibold text-emerald-700">{{ isDealer ? dealerNextAction(job) : job.status }}</p>
+                </div>
+              </div>
             </div>
-            <div class="text-left sm:text-right">
-              <div class="text-xl font-black text-slate-950">
+
+            <div class="rounded-3xl bg-slate-950 p-4 text-white lg:min-w-[180px] lg:text-right">
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Job value</p>
+              <div class="mt-1 text-3xl font-black">
                 {{ priceFormatter.format(Number(job.price ?? 0)) }}
               </div>
-              <span class="badge bg-emerald-100 text-emerald-700">{{ job.status }}</span>
+              <span v-if="!isDealer" class="badge mt-3 bg-emerald-100 text-emerald-700">{{ job.status }}</span>
             </div>
           </div>
 
@@ -471,10 +567,10 @@ onMounted(async () => {
             Visible to drivers at {{ formatGoLive(job) }}. You can still edit this job if needed.
           </p>
 
-          <div class="grid gap-2 sm:flex sm:flex-wrap">
+          <div class="mt-4 grid gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
-              class="btn-primary w-full px-3 py-2 text-xs sm:w-auto"
+              class="btn-primary w-full px-4 py-2 text-sm sm:w-auto"
               @click="openJob(job)"
             >
               {{ isDealer ? 'Manage job' : 'View details' }}
@@ -482,13 +578,13 @@ onMounted(async () => {
             <RouterLink
               v-if="canEditDealerJob(job)"
               :to="`/jobs/${job.id}/edit`"
-              class="btn-secondary w-full px-3 py-2 text-xs sm:w-auto"
+              class="btn-secondary w-full px-4 py-2 text-sm sm:w-auto"
             >
               Edit job
             </RouterLink>
             <button
               type="button"
-              class="btn-secondary w-full px-3 py-2 text-xs disabled:opacity-60 sm:w-auto"
+              class="btn-secondary w-full px-4 py-2 text-sm disabled:opacity-60 sm:w-auto"
               :disabled="isActionPending(job.id, 'cancel')"
               @click="handleCancelJob(job)"
             >
@@ -577,7 +673,7 @@ onMounted(async () => {
     </section>
     </div>
 
-    <aside class="section-card h-fit space-y-4 lg:sticky lg:top-24">
+    <aside v-if="!isDealer" class="section-card h-fit space-y-4 lg:sticky lg:top-24">
       <h2 class="text-sm font-semibold text-slate-900">
         {{ isDealer ? 'Dealer workflow' : 'Job tips' }}
       </h2>

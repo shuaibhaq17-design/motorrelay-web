@@ -40,12 +40,12 @@ const transportOptions = [
   {
     value: 'drive_away',
     label: 'Drive-away',
-    helper: 'Driver delivers by driving the vehicle to the destination.'
+    helper: 'The driver will drive the vehicle from pickup to drop-off.'
   },
   {
     value: 'trailer',
     label: 'Trailer',
-    helper: 'Vehicle transported on a trailer or transporter.'
+    helper: 'The vehicle should be moved on a trailer or transporter.'
   }
 ];
 
@@ -79,11 +79,11 @@ const moneyFormatter = new Intl.NumberFormat('en-GB', {
 });
 const urgentHelperText = computed(() => {
   if (!form.is_urgent) {
-    return 'Enable urgent boost to highlight your job to available drivers.';
+    return 'Optional. Use this when the job needs driver attention quickly.';
   }
   return hasPaidPlan.value
     ? 'Urgent boost is included with your subscription.'
-    : 'Urgent boost adds an extra charge on Starter so we can prioritise your job.';
+    : 'Urgent boost adds an extra charge on Starter before the job is posted.';
 });
 
 function formatMoney(value) {
@@ -404,7 +404,7 @@ watch(
       </section>
 
       <div>
-        <label class="text-sm font-semibold text-slate-700">Transport type</label>
+        <label class="text-sm font-semibold text-slate-700">How should the vehicle be moved?</label>
         <div class="mt-2 flex gap-2">
           <button
             v-for="option in transportOptions"
@@ -428,15 +428,15 @@ watch(
 
       <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <header class="mb-3">
-          <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Timing preferences</h2>
+          <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Collection and delivery times</h2>
           <p class="text-xs text-slate-500">
-            Let drivers know when the vehicle is ready for collection and when you need it delivered.
+            These are optional, but they help drivers decide if they can take the job.
           </p>
         </header>
 
         <div class="grid gap-4 md:grid-cols-2">
           <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Pickup ready date</label>
+            <label class="text-xs font-semibold uppercase text-slate-500">Vehicle ready from</label>
             <input
               v-model="form.pickup_date"
               type="date"
@@ -450,7 +450,7 @@ watch(
           </div>
 
           <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Delivery due by</label>
+            <label class="text-xs font-semibold uppercase text-slate-500">Deliver by</label>
             <input
               v-model="form.delivery_date"
               type="date"
@@ -473,7 +473,7 @@ watch(
             class="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
           />
           <span>
-            <span class="text-sm font-semibold text-emerald-800">Add urgent job boost</span>
+            <span class="text-sm font-semibold text-emerald-800">Boost this job</span>
             <p class="text-xs text-emerald-700">{{ urgentHelperText }}</p>
           </span>
         </label>
@@ -482,14 +482,14 @@ watch(
           v-if="requiresUrgentAcknowledgement"
           class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800"
         >
-          <p>The urgent boost adds an extra charge for Starter plans.</p>
+          <p>This boost adds an extra charge for Starter plans.</p>
           <label class="mt-2 flex items-start gap-2">
             <input
               v-model="form.urgent_fee_ack"
               type="checkbox"
               class="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500"
             />
-            <span>I understand an extra urgent fee will be added to this job.</span>
+            <span>I understand an extra boost fee will be added to this job.</span>
           </label>
         </div>
         <p v-if="starterUsageInfo && starterUsageInfo.urgentRemaining === 0" class="mt-3 text-xs text-amber-700">
@@ -498,7 +498,7 @@ watch(
       </section>
 
       <p class="text-xs text-slate-500">
-        New jobs stay private for the first three minutes so you can make quick corrections before drivers see them.
+        You can edit this job until a driver has been assigned.
       </p>
 
       <p v-if="errorMessage" class="text-sm text-red-600">
