@@ -92,6 +92,14 @@ onMounted(async () => {
       {{ errorMessage }}
     </p>
 
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+      <p class="font-bold">Why a download may be greyed out</p>
+      <p>
+        The PDF download is only available after the job is completed, delivery proof is uploaded, and the dealer approves the job.
+        Demo or draft invoices can appear here before a PDF has been generated.
+      </p>
+    </div>
+
     <div v-if="loading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
       Loading invoices...
     </div>
