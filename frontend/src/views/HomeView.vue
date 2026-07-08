@@ -150,6 +150,25 @@ const onboardingSteps = computed(() => {
   ];
 });
 
+const standoutFeatures = [
+  {
+    title: 'Vetted driver network',
+    text: 'Drivers submit identity and licence documents so dealers know who is moving their vehicles.'
+  },
+  {
+    title: 'Proof-first completion',
+    text: 'Every completed job needs delivery proof before approval and invoice download.'
+  },
+  {
+    title: 'Built-in revenue model',
+    text: 'MotorRelay can earn from platform fees, urgent boosts, dealer plans, and premium driver tools.'
+  },
+  {
+    title: 'Operational control',
+    text: 'Admin tools track users, jobs, conversations, billing signals, and account change requests.'
+  }
+];
+
 const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs).slice(0, 3));
 </script>
 
@@ -246,6 +265,27 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
           <p class="mt-2 text-sm leading-6 text-slate-600">{{ step.text }}</p>
           <span class="mt-4 inline-flex text-sm font-bold text-emerald-700">{{ step.action }}</span>
         </RouterLink>
+      </div>
+    </section>
+
+    <section class="section-card space-y-4">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">What makes this stand out</p>
+        <h2 class="mt-1 text-xl font-black text-slate-950">Trust, proof, and payments in one workflow</h2>
+        <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          The strongest version of MotorRelay is not just a job board. It should be the safe workflow dealers use to post work, choose vetted drivers, approve evidence, and release payment.
+        </p>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-4">
+        <article
+          v-for="feature in standoutFeatures"
+          :key="feature.title"
+          class="rounded-2xl border border-slate-200 bg-white/80 p-4"
+        >
+          <h3 class="font-black text-slate-950">{{ feature.title }}</h3>
+          <p class="mt-2 text-sm leading-6 text-slate-600">{{ feature.text }}</p>
+        </article>
       </div>
     </section>
 

@@ -51,6 +51,20 @@ const isLoading = computed(() => auth.loading && Boolean(auth.token));
 const metrics = computed(() => calculateMetrics(dataset.value));
 const formattedRevenue = computed(() => currencyFormatter.format(metrics.value.totalRevenue));
 const formattedAverage = computed(() => currencyFormatter.format(metrics.value.avgPrice));
+const hasDriverDocuments = computed(() => {
+  if (auth.role !== 'driver') return true;
+  return Boolean(auth.user?.driver_license_front_path && auth.user?.driver_license_back_path);
+});
+const verificationLabel = computed(() => {
+  if (auth.role === 'admin') return 'Admin account';
+  if (auth.role === 'dealer') return auth.user?.trade_policy_path || auth.user?.trade_plate_photo_path ? 'Dealer documents submitted' : 'Dealer documents needed';
+  return hasDriverDocuments.value ? 'Driver documents submitted' : 'Driver documents needed';
+});
+const payoutReadiness = computed(() => {
+  if (auth.role === 'dealer') return 'Dealer billing ready after plan setup';
+  if (auth.role === 'admin') return 'Platform payout controls';
+  return hasDriverDocuments.value ? 'Ready for admin review' : 'Upload licence documents to unlock payouts';
+});
 const completedList = computed(() => {
   const statuses = new Set(['completed', 'closed']);
   return dataset.value.filter((job) => statuses.has(String(job.status || '').toLowerCase()));
@@ -69,12 +83,29 @@ const metricCards = computed(() => [
 ]);
 
 const updates = [
-  '?? Improved job matching accuracy',
-  '?? This week: 10% off delivery fees (Fri-Sun)',
-  '??? Live tracking accuracy upgrades',
-  '??? Tip: Use job # to search',
-  '??? New fraud checks for payouts'
+  'Improved job matching accuracy',
+  'Urgent job boost helps dealers get faster driver attention',
+  'Live tracking accuracy upgrades',
+  'Tip: use job numbers when messaging support',
+  'New fraud checks protect payouts and invoices'
 ];
+const trustChecklist = computed(() => [
+  {
+    label: 'Identity and documents',
+    value: verificationLabel.value,
+    complete: auth.role === 'admin' || verificationLabel.value.includes('submitted')
+  },
+  {
+    label: 'Delivery proof',
+    value: 'Photos or signed PDFs are required before invoice approval',
+    complete: true
+  },
+  {
+    label: 'Payout status',
+    value: payoutReadiness.value,
+    complete: hasDriverDocuments.value
+  }
+]);
 
 function calculateMetrics(jobs) {
   const currentStatuses = new Set(['accepted', 'collected', 'in_transit', 'pending', 'in_progress']);
@@ -139,11 +170,15 @@ function formatPrice(value) {
       <header class="border-b border-slate-100 pb-4">
         <h2 class="text-xl font-semibold text-slate-900">{{ displayName }}</h2>
         <p class="break-words text-sm text-slate-600">
-          {{ primaryEmail }} &bull; {{ roleLabel }}
+          {{ primaryEmail }} - {{ roleLabel }}
         </p>
         <p class="mt-2 text-sm font-semibold text-emerald-600">
           Rating: {{ rating.toFixed(1) }} / 5
         </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <span class="badge bg-emerald-100 text-emerald-700">{{ verificationLabel }}</span>
+          <span class="badge bg-slate-100 text-slate-700">{{ payoutReadiness }}</span>
+        </div>
       </header>
 
       <div
@@ -166,6 +201,24 @@ function formatPrice(value) {
             </p>
           </article>
         </div>
+
+        <section class="min-w-0 max-w-[560px] rounded-2xl border border-slate-200 bg-white p-4 2xl:mx-auto">
+          <header class="mb-3">
+            <h3 class="text-sm font-semibold text-slate-900">Trust and payout readiness</h3>
+            <p class="text-xs text-slate-500">These signals help dealers trust drivers and help admins release money safely.</p>
+          </header>
+          <ul class="space-y-2">
+            <li
+              v-for="item in trustChecklist"
+              :key="item.label"
+              class="rounded-xl border p-3 text-sm"
+              :class="item.complete ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900'"
+            >
+              <div class="font-semibold">{{ item.label }}</div>
+              <div class="text-xs">{{ item.value }}</div>
+            </li>
+          </ul>
+        </section>
 
         <section class="min-w-0 max-w-[560px] rounded-2xl border border-slate-200 bg-white p-4 2xl:mx-auto">
           <header class="mb-3 flex items-center justify-between">
@@ -195,10 +248,10 @@ function formatPrice(value) {
                 </span>
               </div>
               <p class="mt-2 text-sm text-slate-700">
-                {{ job.company || 'Customer' }} &bull; {{ job.vehicle_make || 'Vehicle' }}
+                {{ job.company || 'Customer' }} - {{ job.vehicle_make || 'Vehicle' }}
               </p>
               <p class="text-xs text-slate-500">
-                {{ job.pickup_postcode || '??' }} &rarr; {{ job.dropoff_postcode || '??' }}
+                {{ job.pickup_postcode || 'Pickup' }} to {{ job.dropoff_postcode || 'Drop-off' }}
               </p>
             </li>
           </ol>

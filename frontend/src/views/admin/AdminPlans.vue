@@ -14,6 +14,29 @@ const mixSummary = computed(() => {
     .map(([plan, count]) => `${plan}: ${count}`);
   return entries.length ? entries.join(', ') : 'No active subscriptions yet.';
 });
+
+const revenueLevers = [
+  {
+    label: 'Platform commission',
+    value: '10% target',
+    note: 'Deducted from each completed job once payment processing is connected.'
+  },
+  {
+    label: 'Urgent boost',
+    value: '£25',
+    note: 'Dealer pays extra to promote time-sensitive vehicle movements.'
+  },
+  {
+    label: 'Dealer plans',
+    value: 'Monthly',
+    note: 'Paid tiers can unlock more job posts, team tools, and reporting.'
+  },
+  {
+    label: 'Driver premium',
+    value: 'Optional',
+    note: 'Premium drivers can unlock planner access, wider radius, and priority support.'
+  }
+];
 </script>
 
 <template>
@@ -57,6 +80,25 @@ const mixSummary = computed(() => {
 
     <section class="tile rounded-2xl bg-white p-6">
       <header class="mb-3">
+        <h2 class="text-lg font-semibold text-slate-900">Revenue engine</h2>
+        <p class="text-sm text-slate-600">The clearest ways this app can make money once payments are connected.</p>
+      </header>
+
+      <div class="grid gap-4 md:grid-cols-4">
+        <article
+          v-for="lever in revenueLevers"
+          :key="lever.label"
+          class="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+        >
+          <div class="text-xs font-semibold uppercase text-slate-500">{{ lever.label }}</div>
+          <div class="mt-2 text-2xl font-black text-emerald-700">{{ lever.value }}</div>
+          <p class="mt-2 text-xs leading-5 text-slate-600">{{ lever.note }}</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="tile rounded-2xl bg-white p-6">
+      <header class="mb-3">
         <h2 class="text-lg font-semibold text-slate-900">Billing alerts</h2>
         <p class="text-sm text-slate-600">Signals that might need attention.</p>
       </header>
@@ -82,4 +124,3 @@ const mixSummary = computed(() => {
     </section>
   </div>
 </template>
-

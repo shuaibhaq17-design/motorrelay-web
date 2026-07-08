@@ -66,6 +66,17 @@ const paidPlans = ['gold_driver', 'dealer_pro'];
 const planSlug = computed(() => (auth.planSlug || auth.user?.plan_slug || '').toLowerCase());
 const hasPaidPlan = computed(() => paidPlans.includes(planSlug.value));
 const requiresUrgentAcknowledgement = computed(() => form.is_urgent && !hasPaidPlan.value);
+const jobPrice = computed(() => Number(form.price || 0));
+const platformCommissionRate = 0.1;
+const estimatedPlatformFee = computed(() => Math.max(jobPrice.value * platformCommissionRate, 0));
+const estimatedUrgentFee = computed(() => (requiresUrgentAcknowledgement.value ? 25 : 0));
+const estimatedDealerTotal = computed(() => jobPrice.value + estimatedUrgentFee.value);
+const estimatedDriverPayout = computed(() => Math.max(jobPrice.value - estimatedPlatformFee.value, 0));
+const moneyFormatter = new Intl.NumberFormat('en-GB', {
+  style: 'currency',
+  currency: 'GBP',
+  maximumFractionDigits: 2
+});
 const urgentHelperText = computed(() => {
   if (!form.is_urgent) {
     return 'Enable urgent boost to highlight your job to available drivers.';
@@ -74,6 +85,10 @@ const urgentHelperText = computed(() => {
     ? 'Urgent boost is included with your subscription.'
     : 'Urgent boost adds an extra charge on Starter so we can prioritise your job.';
 });
+
+function formatMoney(value) {
+  return moneyFormatter.format(Number(value || 0));
+}
 
 function selectTransport(value) {
   form.transport_type = value;
@@ -359,6 +374,34 @@ watch(
           class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
         />
       </div>
+
+      <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <header>
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Money breakdown</h2>
+          <p class="mt-1 text-xs text-slate-500">
+            This makes the business model clear before a dealer posts the job. Payment collection is still a later integration.
+          </p>
+        </header>
+
+        <dl class="mt-4 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Driver job price</dt>
+            <dd class="mt-1 text-lg font-black text-slate-900">{{ formatMoney(jobPrice) }}</dd>
+          </div>
+          <div class="rounded-xl bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Estimated platform fee</dt>
+            <dd class="mt-1 text-lg font-black text-emerald-700">{{ formatMoney(estimatedPlatformFee) }}</dd>
+          </div>
+          <div class="rounded-xl bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Estimated driver payout</dt>
+            <dd class="mt-1 text-lg font-black text-slate-900">{{ formatMoney(estimatedDriverPayout) }}</dd>
+          </div>
+          <div class="rounded-xl bg-white p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Dealer total before payment fees</dt>
+            <dd class="mt-1 text-lg font-black text-slate-900">{{ formatMoney(estimatedDealerTotal) }}</dd>
+          </div>
+        </dl>
+      </section>
 
       <div>
         <label class="text-sm font-semibold text-slate-700">Transport type</label>
