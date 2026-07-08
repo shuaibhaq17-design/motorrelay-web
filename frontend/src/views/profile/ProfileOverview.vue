@@ -1,12 +1,32 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink } from 'vue-router';
 import ProfileScorecard from './ProfileScorecard.vue';
+import { disconnectDriverPayoutAccount, startDriverPayoutOnboarding } from '@/services/payments';
 
 const auth = useAuthStore();
+const payoutSetupLoading = ref(false);
+const payoutDisconnectLoading = ref(false);
+const payoutSetupError = ref('');
 
 const isDriver = computed(() => auth.role === 'driver');
+const hasStripePayoutAccount = computed(() => Boolean(auth.user?.stripe_account_id));
+const payoutsEnabled = computed(() => Boolean(auth.user?.stripe_payouts_enabled || auth.user?.stripe_onboarding_complete));
+const payoutCardTitle = computed(() => {
+  if (payoutsEnabled.value) return 'Stripe payouts connected';
+  if (hasStripePayoutAccount.value) return 'Stripe payout setup started';
+  return 'Set up Stripe payouts';
+});
+const payoutCardText = computed(() => {
+  if (payoutsEnabled.value) {
+    return 'Your Stripe payout account is connected. MotorRelay can release payment after delivery proof is approved.';
+  }
+  if (hasStripePayoutAccount.value) {
+    return 'Your Stripe payout account exists. If Stripe still needs information, use the button to finish or update setup.';
+  }
+  return 'Add your bank details securely with Stripe so MotorRelay can release payment after delivery proof is approved.';
+});
 
 const isStarterPlan = computed(() => auth.isStarter);
 const planUsage = computed(() => auth.usage || {});
@@ -74,6 +94,50 @@ function formatDate(value) {
     }).format(new Date(value));
   } catch {
     return value;
+  }
+}
+
+async function handlePayoutSetup() {
+  payoutSetupLoading.value = true;
+  payoutSetupError.value = '';
+
+  try {
+    const payload = await startDriverPayoutOnboarding();
+    if (payload?.url) {
+      window.location.href = payload.url;
+      return;
+    }
+    throw new Error('Stripe did not return an onboarding link.');
+  } catch (error) {
+    console.error('Failed to start Stripe onboarding', error);
+    payoutSetupError.value = error.response?.data?.message || error.message || 'Could not start payout setup.';
+  } finally {
+    payoutSetupLoading.value = false;
+  }
+}
+
+async function handlePayoutDisconnect() {
+  if (!window.confirm('Disconnect Stripe payouts? You will not be able to receive driver payouts until you set this up again.')) {
+    return;
+  }
+
+  payoutDisconnectLoading.value = true;
+  payoutSetupError.value = '';
+
+  try {
+    const payload = await disconnectDriverPayoutAccount();
+    auth.user = payload?.user ?? {
+      ...auth.user,
+      stripe_account_id: null,
+      stripe_onboarding_complete: false,
+      stripe_charges_enabled: false,
+      stripe_payouts_enabled: false
+    };
+  } catch (error) {
+    console.error('Failed to disconnect Stripe payout account', error);
+    payoutSetupError.value = error.response?.data?.message || error.message || 'Could not disconnect payout account.';
+  } finally {
+    payoutDisconnectLoading.value = false;
   }
 }
 
@@ -156,6 +220,55 @@ const profileLinks = computed(() => {
         </div>
       </section>
 
+      <section
+        v-if="isDriver"
+        class="rounded-2xl border p-6"
+        :class="payoutsEnabled ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'"
+      >
+        <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-bold uppercase tracking-wide" :class="payoutsEnabled ? 'text-emerald-700' : 'text-amber-700'">Driver payouts</p>
+            <h2 class="mt-1 text-xl font-black" :class="payoutsEnabled ? 'text-emerald-950' : 'text-amber-950'">{{ payoutCardTitle }}</h2>
+            <p class="mt-2 text-sm leading-6" :class="payoutsEnabled ? 'text-emerald-800' : 'text-amber-800'">
+              {{ payoutCardText }}
+            </p>
+            <span
+              class="mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold"
+              :class="payoutsEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
+            >
+              {{ payoutsEnabled ? 'Connected' : hasStripePayoutAccount ? 'Action may be needed' : 'Not connected' }}
+            </span>
+          </div>
+          <div class="flex w-full flex-col gap-3 sm:flex-row md:w-auto md:flex-shrink-0 md:justify-end">
+            <button
+              type="button"
+              class="btn-primary w-full whitespace-nowrap px-5 py-3 md:w-auto"
+              :disabled="payoutSetupLoading || payoutDisconnectLoading"
+              @click="handlePayoutSetup"
+            >
+              <span v-if="payoutSetupLoading">Opening Stripe...</span>
+              <span v-else-if="payoutsEnabled">Manage payout setup</span>
+              <span v-else-if="hasStripePayoutAccount">Finish payout setup</span>
+              <span v-else>Set up payouts</span>
+            </button>
+            <button
+              v-if="hasStripePayoutAccount"
+              type="button"
+              class="btn-secondary w-full whitespace-nowrap border-rose-200 bg-white px-5 py-3 text-rose-700 hover:bg-rose-50 md:w-auto"
+              :disabled="payoutSetupLoading || payoutDisconnectLoading"
+              @click="handlePayoutDisconnect"
+            >
+              <span v-if="payoutDisconnectLoading">Disconnecting...</span>
+              <span v-else>Disconnect</span>
+            </button>
+          </div>
+        </div>
+        <p v-if="payoutSetupError" class="mt-3 text-sm text-rose-700">{{ payoutSetupError }}</p>
+        <p v-else class="mt-3 text-xs" :class="payoutsEnabled ? 'text-emerald-700' : 'text-amber-700'">
+          MotorRelay does not store bank details. Stripe handles payout verification.
+        </p>
+      </section>
+
       <ProfileScorecard v-if="!isDriver" />
       <section class="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 class="text-lg font-semibold text-slate-900">Profile</h2>
@@ -216,7 +329,7 @@ const profileLinks = computed(() => {
                 {{ job.title || job.company || 'MotorRelay job' }}
               </p>
               <p class="text-xs text-slate-500">
-                {{ job.pickup_postcode || '??' }} -> {{ job.dropoff_postcode || '??' }}
+                {{ job.pickup_postcode || 'Pickup' }} to {{ job.dropoff_postcode || 'Drop-off' }}
               </p>
             </article>
           </div>

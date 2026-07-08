@@ -18,6 +18,7 @@ import {
   updateJobLocation,
   dealerCompleteJob
 } from "@/services/jobs";
+import { createJobCheckout, releaseDriverPayout } from "@/services/payments";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
@@ -68,6 +69,9 @@ const trackingState = reactive({
 });
 const navigationModalOpen = ref(false);
 const dealerCompletionLoading = ref(false);
+const checkoutLoading = ref(false);
+const payoutReleaseLoading = ref(false);
+const paymentError = ref("");
 
 const priceFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -435,6 +439,18 @@ const canDealerComplete = computed(() => {
   const allowed = new Set(["accepted", "in_progress", "collected", "in_transit", "delivered", "completion_pending"]);
   return allowed.has(status);
 });
+const paymentStatus = computed(() => job.value?.payment_status || 'unpaid');
+const canStartCheckout = computed(() => {
+  if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
+  if (!job.value.assigned_to_id) return false;
+  return !['paid', 'payout_released'].includes(paymentStatus.value);
+});
+const canReleasePayout = computed(() => {
+  if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
+  if (paymentStatus.value !== 'paid') return false;
+  if (!hasDeliveryProof.value) return false;
+  return ['submitted', 'approved'].includes(completionStatus.value) && !job.value.stripe_transfer_id;
+});
 
 const myApplication = computed(() => job.value?.my_application ?? null);
 
@@ -725,6 +741,44 @@ async function handleDealerComplete() {
   }
 }
 
+async function handleCheckout() {
+  if (!job.value?.id) return;
+
+  checkoutLoading.value = true;
+  paymentError.value = "";
+
+  try {
+    const payload = await createJobCheckout(job.value.id);
+    if (payload?.url) {
+      window.location.href = payload.url;
+      return;
+    }
+    throw new Error("Stripe did not return a checkout link.");
+  } catch (error) {
+    console.error("Failed to create Stripe checkout", error);
+    paymentError.value = error.response?.data?.message || error.message || "Could not start payment.";
+  } finally {
+    checkoutLoading.value = false;
+  }
+}
+
+async function handleReleasePayout() {
+  if (!job.value?.id) return;
+
+  payoutReleaseLoading.value = true;
+  paymentError.value = "";
+
+  try {
+    const payload = await releaseDriverPayout(job.value.id);
+    job.value = payload?.job ?? job.value;
+  } catch (error) {
+    console.error("Failed to release driver payout", error);
+    paymentError.value = error.response?.data?.message || error.message || "Could not release payout.";
+  } finally {
+    payoutReleaseLoading.value = false;
+  }
+}
+
 async function handleDownloadProof() {
   if (!job.value) return;
 
@@ -945,6 +999,69 @@ watch(
             <span v-if="dealerCompletionLoading">Processing...</span>
             <span v-else>Mark job completed</span>
           </button>
+        </div>
+      </section>
+
+      <section
+        v-if="isDealerForJob || currentRole === 'admin'"
+        class="tile space-y-4 p-4"
+      >
+        <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Payment</h2>
+            <p class="text-xs text-slate-500">
+              Dealer payment is collected by MotorRelay. Driver payout is released after delivery proof is approved.
+            </p>
+          </div>
+          <span class="badge bg-slate-100 text-slate-800 uppercase">{{ paymentStatus }}</span>
+        </header>
+
+        <dl class="grid gap-3 text-sm sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Platform fee</dt>
+            <dd class="mt-1 font-black text-emerald-700">{{ priceFormatter.format(Number(job.platform_fee_amount || 0)) }}</dd>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Driver payout</dt>
+            <dd class="mt-1 font-black text-slate-900">{{ priceFormatter.format(Number(job.driver_payout_amount || 0)) }}</dd>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <dt class="text-xs font-semibold uppercase text-slate-500">Paid</dt>
+            <dd class="mt-1 font-black text-slate-900">{{ job.paid_at ? formatDateTime(job.paid_at) : '--' }}</dd>
+          </div>
+        </dl>
+
+        <p v-if="paymentError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          {{ paymentError }}
+        </p>
+
+        <div class="grid gap-2 sm:flex sm:flex-wrap">
+          <button
+            v-if="canStartCheckout"
+            type="button"
+            class="btn-primary w-full sm:w-auto"
+            :disabled="checkoutLoading"
+            @click="handleCheckout"
+          >
+            <span v-if="checkoutLoading">Opening checkout...</span>
+            <span v-else>Pay for this job</span>
+          </button>
+          <button
+            v-if="canReleasePayout"
+            type="button"
+            class="btn-primary w-full sm:w-auto"
+            :disabled="payoutReleaseLoading"
+            @click="handleReleasePayout"
+          >
+            <span v-if="payoutReleaseLoading">Releasing payout...</span>
+            <span v-else>Release driver payout</span>
+          </button>
+          <p
+            v-if="!canStartCheckout && !canReleasePayout"
+            class="text-xs text-slate-500"
+          >
+            Assign a driver first, then take payment. Payout unlocks after proof is submitted and payment is complete.
+          </p>
         </div>
       </section>
 

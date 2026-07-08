@@ -39,7 +39,11 @@ class User extends Authenticatable
         'driver_license_front_path',
         'driver_license_back_path',
         'driver_passport_path',
-        'driver_selfie_path'
+        'driver_selfie_path',
+        'stripe_account_id',
+        'stripe_onboarding_complete',
+        'stripe_charges_enabled',
+        'stripe_payouts_enabled',
     ];
 
     protected $hidden = [
@@ -50,6 +54,9 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'stripe_onboarding_complete' => 'boolean',
+        'stripe_charges_enabled' => 'boolean',
+        'stripe_payouts_enabled' => 'boolean',
     ];
 
     protected $appends = [

@@ -6,6 +6,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
+use Stripe\Exception\ApiErrorException;
+use Stripe\StripeClient;
 
 class UserProfileController extends Controller
 {
@@ -18,6 +20,9 @@ class UserProfileController extends Controller
                 'message' => 'Unauthenticated.'
             ], 401);
         }
+
+        $this->syncStripePayoutStatus($user);
+        $user->refresh();
 
         $assignedJobs = $user->assignedJobs()
             ->select([
@@ -113,5 +118,38 @@ class UserProfileController extends Controller
                 'completed' => $completedJobs
             ]
         ]);
+    }
+
+    protected function syncStripePayoutStatus($user): void
+    {
+        if (!$user->isDriver() || !$user->stripe_account_id || !config('stripe.secret_key')) {
+            return;
+        }
+
+        try {
+            $stripe = new StripeClient(config('stripe.secret_key'));
+            $account = $stripe->v2->core->accounts->retrieve($user->stripe_account_id, [
+                'include' => [
+                    'configuration.recipient',
+                    'requirements',
+                ],
+            ]);
+        } catch (ApiErrorException) {
+            return;
+        }
+
+        $appliedConfigurations = (array) ($account->applied_configurations ?? []);
+        $requirements = $account->requirements->entries ?? [];
+        $recipient = $account->configuration->recipient ?? null;
+        $transferStatus = $recipient?->capabilities?->stripe_balance?->stripe_transfers?->status ?? null;
+
+        $onboardingComplete = in_array('recipient', $appliedConfigurations, true) || count($requirements) === 0;
+        $payoutsEnabled = $transferStatus === 'active' || $onboardingComplete;
+
+        $user->forceFill([
+            'stripe_onboarding_complete' => $onboardingComplete,
+            'stripe_payouts_enabled' => $payoutsEnabled,
+            'stripe_charges_enabled' => false,
+        ])->save();
     }
 }

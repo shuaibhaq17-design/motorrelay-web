@@ -12,11 +12,13 @@ use App\Http\Controllers\JobController;
 use App\Http\Controllers\JobWorkflowController;
 use App\Http\Controllers\JobTrackingController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\StripePaymentController;
 use App\Http\Controllers\UserProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/stripe/webhook', [StripePaymentController::class, 'webhook']);
 
 Route::get('/jobs/highlights', [JobController::class, 'highlights']);
 
@@ -36,6 +38,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/jobs/{job}', [JobController::class, 'destroy']);
 
     Route::post('/jobs/{job}/invoice/send', [InvoiceController::class, 'sendFromJob']);
+    Route::post('/jobs/{job}/payment/checkout', [StripePaymentController::class, 'createJobCheckout']);
+    Route::post('/jobs/{job}/payment/release-payout', [StripePaymentController::class, 'releaseDriverPayout']);
+    Route::post('/stripe/connect/onboard', [StripePaymentController::class, 'onboardDriver']);
+    Route::post('/stripe/connect/disconnect', [StripePaymentController::class, 'disconnectDriver']);
 
     Route::get('/jobs/{job}/expenses', [ExpenseController::class, 'index']);
     Route::post('/jobs/{job}/expenses', [ExpenseController::class, 'store']);

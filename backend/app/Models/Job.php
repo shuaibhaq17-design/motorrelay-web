@@ -39,7 +39,12 @@ class Job extends Model
         'is_urgent',
         'urgent_fee_amount',
         'platform_fee_amount',
+        'driver_payout_amount',
         'platform_fee_reference',
+        'payment_status',
+        'stripe_checkout_session_id',
+        'stripe_payment_intent_id',
+        'stripe_transfer_id',
         'completion_status',
         'completion_submitted_at',
         'completion_notes',
@@ -48,6 +53,8 @@ class Job extends Model
         'delivery_proof_path',
         'delivery_proof_disk',
         'completed_at',
+        'paid_at',
+        'payout_released_at',
         'finalized_invoice_id',
     ];
 
@@ -62,10 +69,13 @@ class Job extends Model
         'is_urgent' => 'boolean',
         'urgent_fee_amount' => 'decimal:2',
         'platform_fee_amount' => 'decimal:2',
+        'driver_payout_amount' => 'decimal:2',
         'completion_submitted_at' => 'datetime',
         'completion_approved_at' => 'datetime',
         'completion_rejected_at' => 'datetime',
         'completed_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'payout_released_at' => 'datetime',
         'last_tracked_at' => 'datetime',
     ];
 

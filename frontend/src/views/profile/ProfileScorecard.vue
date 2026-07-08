@@ -1,8 +1,11 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { startDriverPayoutOnboarding } from '@/services/payments';
 
 const auth = useAuthStore();
+const payoutSetupLoading = ref(false);
+const payoutSetupError = ref('');
 
 const currencyFormatter = new Intl.NumberFormat('en-GB', {
   style: 'currency',
@@ -153,6 +156,25 @@ function formatDate(value) {
 function formatPrice(value) {
   return currencyFormatter.format(Number(value || 0));
 }
+
+async function handlePayoutSetup() {
+  payoutSetupLoading.value = true;
+  payoutSetupError.value = '';
+
+  try {
+    const payload = await startDriverPayoutOnboarding();
+    if (payload?.url) {
+      window.location.href = payload.url;
+      return;
+    }
+    throw new Error('Stripe did not return an onboarding link.');
+  } catch (error) {
+    console.error('Failed to start Stripe onboarding', error);
+    payoutSetupError.value = error.response?.data?.message || error.message || 'Could not start payout setup.';
+  } finally {
+    payoutSetupLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -178,6 +200,22 @@ function formatPrice(value) {
         <div class="mt-3 flex flex-wrap gap-2">
           <span class="badge bg-emerald-100 text-emerald-700">{{ verificationLabel }}</span>
           <span class="badge bg-slate-100 text-slate-700">{{ payoutReadiness }}</span>
+        </div>
+        <div v-if="auth.role === 'driver'" class="mt-4">
+          <button
+            type="button"
+            class="btn-primary w-full sm:w-auto"
+            :disabled="payoutSetupLoading"
+            @click="handlePayoutSetup"
+          >
+            <span v-if="payoutSetupLoading">Opening Stripe...</span>
+            <span v-else-if="auth.user?.stripe_payouts_enabled">Update payout setup</span>
+            <span v-else>Set up payouts</span>
+          </button>
+          <p v-if="payoutSetupError" class="mt-2 text-xs text-rose-600">{{ payoutSetupError }}</p>
+          <p v-else class="mt-2 text-xs text-slate-500">
+            Stripe collects bank details securely. MotorRelay never stores driver bank details.
+          </p>
         </div>
       </header>
 
