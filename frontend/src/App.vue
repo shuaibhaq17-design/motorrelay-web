@@ -1,22 +1,22 @@
 <template>
   <div class="flex min-h-screen flex-col text-slate-900">
     <header class="sticky top-0 z-50 border-b border-white/70 bg-white/75 backdrop-blur-xl">
-      <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <div class="flex items-center gap-3">
+      <nav class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-3 sm:px-6 lg:px-8">
+        <div class="flex min-w-0 items-center gap-2 sm:gap-3">
           <div v-if="showBackButton" class="md:hidden">
             <BackButton />
           </div>
-          <RouterLink to="/" class="group flex items-center gap-3">
-            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 shadow-lg shadow-slate-950/15 ring-1 ring-white/40 transition group-hover:-translate-y-0.5">
+          <RouterLink to="/" class="group flex min-w-0 items-center gap-2 sm:gap-3">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 shadow-lg shadow-slate-950/15 ring-1 ring-white/40 transition group-hover:-translate-y-0.5 sm:h-11 sm:w-11">
               <img
                 src="@/assets/logo-icon.svg"
                 alt="MotorRelay logo"
-                class="h-8 w-8"
+                class="h-7 w-7 sm:h-8 sm:w-8"
               />
             </span>
-            <div class="flex flex-col leading-tight text-slate-900">
-              <span class="text-base font-black tracking-tight">MotorRelay</span>
-              <span class="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600">Move Smarter</span>
+            <div class="flex min-w-0 flex-col leading-tight text-slate-900">
+              <span class="truncate text-sm font-black tracking-tight sm:text-base">MotorRelay</span>
+              <span class="hidden text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600 sm:block">Move Smarter</span>
             </div>
           </RouterLink>
         </div>
@@ -38,14 +38,14 @@
         <RouterLink
           v-if="showLogin"
           to="/login"
-          class="btn-primary"
+          class="btn-primary shrink-0 px-3 py-2 text-xs sm:px-4 sm:text-sm"
         >
           Login
         </RouterLink>
         <button
           v-else
           type="button"
-          class="btn-secondary"
+          class="btn-secondary shrink-0 px-3 py-2 text-xs sm:px-4 sm:text-sm"
           @click="handleLogout"
         >
           Logout
@@ -86,7 +86,7 @@ import BackButton from '@/components/BackButton.vue';
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
-const baseMainClasses = 'mx-auto w-full flex-1 max-w-7xl px-4 pb-24 pt-7 sm:px-6 sm:pb-10 lg:px-8';
+const baseMainClasses = 'mx-auto w-full flex-1 max-w-7xl px-3 pb-28 pt-5 sm:px-6 sm:pb-10 sm:pt-7 lg:px-8';
 
 const navLinks = [
   { to: '/', label: 'Home', exact: true, icon: 'home', showInBottomNav: true },

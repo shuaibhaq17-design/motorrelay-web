@@ -124,26 +124,26 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
 <template>
   <div class="space-y-6">
     <section class="section-card overflow-hidden">
-      <div class="grid gap-8 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
-        <div class="space-y-6">
-          <div class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+      <div class="grid gap-6 lg:grid-cols-[1.25fr_0.75fr] lg:items-center lg:gap-8">
+        <div class="space-y-5 sm:space-y-6">
+          <div class="inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700 sm:text-xs sm:tracking-[0.18em]">
             {{ roleLabel }}
           </div>
 
           <div class="max-w-3xl space-y-4">
-            <h1 class="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            <h1 class="text-3xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
               Move vehicles with less chasing.
             </h1>
-            <p class="max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+            <p class="max-w-2xl text-sm leading-6 text-slate-600 sm:text-lg sm:leading-7">
               MotorRelay brings jobs, drivers, live tracking, expenses, messages, proof of delivery, and invoices into one clean workspace.
             </p>
           </div>
 
-          <div class="flex flex-wrap gap-3">
-            <RouterLink :to="primaryAction.to" class="btn-primary">
+          <div class="grid gap-3 sm:flex sm:flex-wrap">
+            <RouterLink :to="primaryAction.to" class="btn-primary w-full sm:w-auto">
               {{ primaryAction.label }}
             </RouterLink>
-            <RouterLink :to="secondaryAction.to" class="btn-secondary">
+            <RouterLink :to="secondaryAction.to" class="btn-secondary w-full sm:w-auto">
               {{ secondaryAction.label }}
             </RouterLink>
           </div>
@@ -155,13 +155,13 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
               class="rounded-2xl border border-slate-200/80 bg-white/70 p-4 shadow-sm"
             >
               <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">{{ stat.label }}</dt>
-              <dd class="mt-2 text-2xl font-black text-slate-950">{{ stat.value }}</dd>
+              <dd class="mt-2 break-words text-xl font-black text-slate-950 sm:text-2xl">{{ stat.value }}</dd>
             </div>
           </dl>
         </div>
 
-        <aside class="rounded-3xl bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/20">
-          <div class="flex items-center justify-between">
+        <aside class="rounded-3xl bg-slate-950 p-4 text-white shadow-2xl shadow-slate-950/20 sm:p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">Live board</p>
               <h2 class="mt-1 text-xl font-bold">Open jobs</h2>
@@ -178,8 +178,8 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
               :to="job.id && String(job.id).startsWith('demo') ? '/jobs' : `/jobs/${job.id}`"
               class="block rounded-2xl border border-white/10 bg-white/[0.06] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.1]"
             >
-              <div class="flex items-start justify-between gap-3">
-                <div>
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0">
                   <p class="font-semibold text-white">
                     {{ job.pickup_label || job.pickup_postcode || 'Pickup' }}
                     <span class="text-slate-500">to</span>
@@ -187,7 +187,7 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
                   </p>
                   <p class="mt-1 text-xs text-slate-400">{{ job.status || 'open' }}</p>
                 </div>
-                <span class="rounded-full bg-emerald-400 px-3 py-1 text-sm font-black text-slate-950">
+                <span class="w-fit rounded-full bg-emerald-400 px-3 py-1 text-sm font-black text-slate-950">
                   {{ priceFormatter.format(Number(job.price || 0)) }}
                 </span>
               </div>
@@ -202,7 +202,7 @@ const jobsToDisplay = computed(() => (jobs.value.length ? jobs.value : demoJobs)
         v-for="link in quickLinks"
         :key="link.title"
         :to="link.to"
-        class="tile group flex min-h-[150px] flex-col justify-between p-5 transition hover:-translate-y-1 hover:shadow-2xl"
+        class="tile group flex min-h-[140px] flex-col justify-between p-4 transition hover:-translate-y-1 hover:shadow-2xl sm:min-h-[150px] sm:p-5"
       >
         <div>
           <h2 class="text-lg font-black text-slate-950">{{ link.title }}</h2>

@@ -43,7 +43,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/70 bg-white/90 shadow-2xl shadow-slate-950/10 ring-1 ring-slate-900/5 backdrop-blur lg:grid-cols-[0.9fr_1.1fr]">
+  <div class="mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-2xl shadow-slate-950/10 ring-1 ring-slate-900/5 backdrop-blur sm:rounded-[2rem] lg:grid-cols-[0.9fr_1.1fr]">
     <aside class="hidden bg-slate-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">MotorRelay</p>
@@ -65,10 +65,10 @@ async function submit() {
       </div>
     </aside>
 
-    <section class="space-y-8 p-6 sm:p-8 lg:p-10">
+    <section class="space-y-6 p-5 sm:space-y-8 sm:p-8 lg:p-10">
       <header class="space-y-2">
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Welcome back</p>
-        <h1 class="text-3xl font-black tracking-tight text-slate-950">Sign in to MotorRelay</h1>
+        <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 sm:text-xs sm:tracking-[0.18em]">Welcome back</p>
+        <h1 class="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Sign in to MotorRelay</h1>
         <p class="text-sm leading-6 text-slate-600">
           Access your account to manage jobs, drivers, messages, tracking, and paperwork.
         </p>

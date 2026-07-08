@@ -31,7 +31,7 @@ function isActive(item) {
         v-for="item in items"
         :key="item.to"
         :to="item.to"
-        class="flex flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-bold transition"
+        class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-bold transition sm:px-2 sm:text-[11px]"
         :class="isActive(item) ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950'"
       >
         <svg
@@ -109,7 +109,7 @@ function isActive(item) {
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
           <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 21h7.5M4.5 9.75l3 6h9l3-6" />
         </svg>
-        <span>{{ item.label }}</span>
+        <span class="max-w-full truncate">{{ item.label }}</span>
       </RouterLink>
     </div>
   </nav>

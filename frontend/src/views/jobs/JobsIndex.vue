@@ -250,15 +250,15 @@ onMounted(async () => {
     <div class="section-card flex flex-col justify-between gap-4 md:flex-row md:items-center">
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Marketplace</p>
-        <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-950">Jobs</h1>
+        <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Jobs</h1>
         <p class="mt-1 text-sm text-slate-600">Review, request, assign, and complete MotorRelay runs.</p>
       </div>
 
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
         <RouterLink
           v-if="auth.isDealer || auth.role === 'admin'"
           to="/jobs/new"
-          class="btn-primary"
+          class="btn-primary w-full sm:w-auto"
         >
           Create job
         </RouterLink>
@@ -266,7 +266,7 @@ onMounted(async () => {
         <RouterLink
           v-if="auth.hasPlannerAccess"
           to="/planner"
-          class="btn-secondary"
+          class="btn-secondary w-full sm:w-auto"
         >
           Planner
         </RouterLink>
@@ -288,7 +288,7 @@ onMounted(async () => {
         </div>
         <RouterLink
           to="/planner"
-          class="btn-secondary"
+          class="btn-secondary w-full sm:w-auto"
         >
           Open planner
           <span aria-hidden="true">→</span>
@@ -308,7 +308,7 @@ onMounted(async () => {
     </div>
 
     <section v-if="showActiveSection" class="section-card space-y-4">
-      <header class="flex items-center justify-between">
+      <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-semibold text-slate-900">
           {{ isDriver ? 'Your active jobs' : 'Active jobs' }}
         </h2>
@@ -331,15 +331,15 @@ onMounted(async () => {
         <article
           v-for="job in activeJobs"
           :key="`active-${job.id}`"
-          class="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
+          class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg sm:p-5"
         >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
               <p class="text-lg font-semibold text-slate-900">
                 {{ job.title || `Job #${job.id}` }}
               </p>
               <p class="text-sm text-slate-600">
-                {{ job.pickup_postcode || '--' }} -> {{ job.dropoff_postcode || '--' }}
+                {{ job.pickup_postcode || '--' }} to {{ job.dropoff_postcode || '--' }}
               </p>
               <p class="text-xs text-slate-500">
                 Transport: {{ formatTransportType(job.transport_type) }}
@@ -354,7 +354,7 @@ onMounted(async () => {
                 </template>
               </p>
             </div>
-            <div class="text-right">
+            <div class="text-left sm:text-right">
               <div class="text-xl font-black text-slate-950">
                 {{ priceFormatter.format(Number(job.price ?? 0)) }}
               </div>
@@ -369,10 +369,10 @@ onMounted(async () => {
             Goes live at {{ formatGoLive(job) }}. You can still edit this job if needed.
           </p>
 
-          <div class="flex flex-wrap gap-2">
+          <div class="grid gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
-              class="btn-secondary px-3 py-2 text-xs"
+              class="btn-secondary w-full px-3 py-2 text-xs sm:w-auto"
               @click="openJob(job)"
             >
               View details
@@ -380,13 +380,13 @@ onMounted(async () => {
             <RouterLink
               v-if="isDealer"
               :to="`/jobs/${job.id}/edit`"
-              class="btn-secondary px-3 py-2 text-xs"
+              class="btn-secondary w-full px-3 py-2 text-xs sm:w-auto"
             >
               Edit job
             </RouterLink>
             <button
               type="button"
-              class="btn-secondary px-3 py-2 text-xs disabled:opacity-60"
+              class="btn-secondary w-full px-3 py-2 text-xs disabled:opacity-60 sm:w-auto"
               :disabled="isActionPending(job.id, 'cancel')"
               @click="handleCancelJob(job)"
             >
@@ -396,7 +396,7 @@ onMounted(async () => {
             <button
               v-if="isDriver"
               type="button"
-              class="btn-primary px-3 py-2 text-xs disabled:opacity-60"
+              class="btn-primary w-full px-3 py-2 text-xs disabled:opacity-60 sm:w-auto"
               :disabled="isActionPending(job.id, 'deliver')"
               @click="handleMarkDelivered(job)"
             >
@@ -413,7 +413,7 @@ onMounted(async () => {
     </div>
 
     <section class="section-card space-y-4">
-      <header class="flex items-center justify-between" v-if="isDriver">
+      <header class="flex items-center justify-between gap-3" v-if="isDriver">
         <h2 class="text-lg font-semibold text-slate-900">Available jobs</h2>
         <span class="text-xs font-semibold text-slate-500">
           {{ visibleJobs.length }} listed
@@ -433,11 +433,11 @@ onMounted(async () => {
           v-for="job in visibleJobs"
           :key="job.id"
           type="button"
-          class="w-full cursor-pointer rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl"
+          class="w-full cursor-pointer rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl sm:p-5"
           @click="openJob(job)"
         >
-          <div class="flex items-start justify-between gap-3">
-            <div>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
               <div class="text-2xl font-black text-slate-950">
                 {{ priceFormatter.format(Number(job.price ?? 0)) }}
               </div>
@@ -445,7 +445,7 @@ onMounted(async () => {
                 {{ job.company || 'Customer' }} - {{ job.vehicle_make || 'Vehicle' }}
               </p>
               <p class="text-xs text-slate-500">
-                {{ job.pickup_postcode || '--' }} -> {{ job.dropoff_postcode || '--' }}
+                {{ job.pickup_postcode || '--' }} to {{ job.dropoff_postcode || '--' }}
               </p>
               <p class="text-xs text-slate-500">
                 Transport: {{ formatTransportType(job.transport_type) }}
@@ -458,11 +458,11 @@ onMounted(async () => {
             </span>
           </div>
 
-          <div class="mt-3 flex flex-wrap gap-2">
+          <div class="mt-3 grid gap-2 sm:flex sm:flex-wrap">
             <button
               v-if="isDriver"
               type="button"
-              class="btn-primary px-4 py-2 text-sm disabled:opacity-60"
+              class="btn-primary w-full px-4 py-2 text-sm disabled:opacity-60 sm:w-auto"
               :disabled="hasApplied(job.id)"
               @click.stop="handleApply(job)"
             >
@@ -475,7 +475,7 @@ onMounted(async () => {
     </section>
     </div>
 
-    <aside class="section-card sticky top-24 h-fit space-y-4">
+    <aside class="section-card h-fit space-y-4 lg:sticky lg:top-24">
       <h2 class="text-sm font-semibold text-slate-900">Job tips</h2>
       <p class="text-sm text-slate-600">
         Keep your pipeline organised: move delivered runs to invoices immediately and reserve capacity in the planner.
