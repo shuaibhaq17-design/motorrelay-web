@@ -560,13 +560,6 @@ onMounted(async () => {
             </div>
           </div>
 
-          <p
-            v-if="isDealer && jobIsAwaitingLive(job)"
-            class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700"
-          >
-            Visible to drivers at {{ formatGoLive(job) }}. You can still edit this job if needed.
-          </p>
-
           <div class="mt-4 grid gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"

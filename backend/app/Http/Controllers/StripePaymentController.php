@@ -260,7 +260,7 @@ class StripePaymentController extends Controller
         }
 
         $driver = User::find($job->assigned_to_id);
-        if (!$driver?->stripe_account_id || !$driver->stripe_payouts_enabled) {
+        if (!$driver?->stripe_account_id || !$this->driverCanReceiveStripeTransfers($driver)) {
             abort(422, 'Driver must finish Stripe payout setup before payout can be released.');
         }
 
@@ -349,6 +349,37 @@ class StripePaymentController extends Controller
             'stripe_charges_enabled' => (bool) ($account->charges_enabled ?? false),
             'stripe_payouts_enabled' => (bool) ($account->payouts_enabled ?? false),
         ]);
+    }
+
+    protected function driverCanReceiveStripeTransfers(User $driver): bool
+    {
+        if (!$driver->stripe_account_id) {
+            return false;
+        }
+
+        try {
+            $account = $this->stripeClient()->v2->core->accounts->retrieve($driver->stripe_account_id, [
+                'include' => [
+                    'configuration.recipient',
+                    'requirements',
+                ],
+            ]);
+        } catch (ApiErrorException) {
+            return false;
+        }
+
+        $appliedConfigurations = (array) ($account->applied_configurations ?? []);
+        $recipient = $account->configuration->recipient ?? null;
+        $transferStatus = $recipient?->capabilities?->stripe_balance?->stripe_transfers?->status ?? null;
+        $transfersEnabled = in_array((string) $transferStatus, ['active', 'enabled'], true);
+
+        $driver->forceFill([
+            'stripe_onboarding_complete' => in_array('recipient', $appliedConfigurations, true),
+            'stripe_payouts_enabled' => $transfersEnabled,
+            'stripe_charges_enabled' => false,
+        ])->save();
+
+        return $transfersEnabled;
     }
 
     protected function configureStripe(): void

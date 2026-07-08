@@ -144,7 +144,7 @@ class UserProfileController extends Controller
         $transferStatus = $recipient?->capabilities?->stripe_balance?->stripe_transfers?->status ?? null;
 
         $onboardingComplete = in_array('recipient', $appliedConfigurations, true) || count($requirements) === 0;
-        $payoutsEnabled = $transferStatus === 'active' || $onboardingComplete;
+        $payoutsEnabled = in_array((string) $transferStatus, ['active', 'enabled'], true);
 
         $user->forceFill([
             'stripe_onboarding_complete' => $onboardingComplete,

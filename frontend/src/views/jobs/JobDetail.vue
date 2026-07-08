@@ -15,7 +15,9 @@ import {
   rejectJobCompletion,
   downloadExpenseReceipt,
   downloadDeliveryProof,
-  updateJobLocation
+  updateJobLocation,
+  markJobCollected,
+  markJobDelivered
 } from "@/services/jobs";
 import { createJobCheckout, releaseDriverPayout, syncJobPayment } from "@/services/payments";
 import { useAuthStore } from "@/stores/auth";
@@ -60,6 +62,8 @@ const completionError = ref("");
 const completionSubmitting = ref(false);
 const completionDecisionLoading = ref(false);
 const proofDownloading = ref(false);
+const driverActionLoading = ref("");
+const driverActionError = ref("");
 
 const trackingState = reactive({
   sending: false,
@@ -381,9 +385,7 @@ const canReviewExpenses = computed(() => {
   return currentRole.value === "admin" || isDealerForJob.value;
 });
 const shouldShowExpenses = computed(() => {
-  if (!canSeeExpenses.value) return false;
-  if (expenses.value.length > 0) return true;
-  return canSubmitExpenses.value;
+  return false;
 });
 
 const shouldShowGoLiveBanner = computed(
@@ -395,6 +397,25 @@ const canSubmitCompletion = computed(() => {
   if (!isAssignedDriver.value) return false;
   return !job.value?.finalized_invoice_id;
 });
+const canMarkCollected = computed(() => {
+  if (!isAssignedDriver.value) return false;
+  return ['accepted', 'in_progress'].includes(String(job.value?.status || '').toLowerCase());
+});
+const canMarkDeliveredFromDetail = computed(() => {
+  if (!isAssignedDriver.value) return false;
+  return ['collected', 'in_transit'].includes(String(job.value?.status || '').toLowerCase());
+});
+const driverNextActionText = computed(() => {
+  if (!isAssignedDriver.value) return '';
+  if (canMarkCollected.value) return 'Collect the vehicle, then tap “Mark collected”.';
+  if (canMarkDeliveredFromDetail.value) return 'Deliver the vehicle, then tap “Mark delivered”.';
+  if (canSubmitCompletion.value && !hasDeliveryProof.value) return 'Upload delivery proof so the dealer can approve the job.';
+  if (completionStatus.value === 'submitted') return 'Wait for the dealer to approve your proof.';
+  if (completionStatus.value === 'approved' && paymentStatus.value !== 'payout_released') return 'Delivery is approved. Waiting for payout release.';
+  if (paymentStatus.value === 'payout_released') return 'Payout has been released.';
+  return '';
+});
+const showDriverNextAction = computed(() => Boolean(driverNextActionText.value));
 
 const canApproveCompletion = computed(() => {
   if (!(currentRole.value === "admin" || isDealerForJob.value)) return false;
@@ -755,6 +776,30 @@ async function handleDownloadReceipt(expense) {
   }
 }
 
+function safeDownloadName(value) {
+  return (value || "")
+    .toString()
+    .trim()
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 80);
+}
+
+function deliveryProofDownloadName() {
+  const baseName = safeDownloadName(
+    job.value?.registration ||
+      job.value?.vehicle_registration ||
+      job.value?.vehicle_reg ||
+      job.value?.vrm ||
+      job.value?.title ||
+      job.value?.vehicle_make ||
+      `job-${job.value?.id}`
+  );
+
+  return baseName || "delivery-proof";
+}
+
 function onCompletionProofChange(event) {
   const [file] = event.target?.files ?? [];
   completionForm.proof = file ?? null;
@@ -814,6 +859,40 @@ async function handleRejectCompletion() {
     alert(error.response?.data?.message || "Unable to reject completion.");
   } finally {
     completionDecisionLoading.value = false;
+  }
+}
+
+async function handleDriverCollected() {
+  if (!job.value?.id || !canMarkCollected.value) return;
+
+  driverActionLoading.value = "collected";
+  driverActionError.value = "";
+
+  try {
+    await markJobCollected(job.value.id);
+    await loadJob();
+  } catch (error) {
+    console.error("Failed to mark job collected", error);
+    driverActionError.value = error.response?.data?.message || "Unable to mark this job as collected.";
+  } finally {
+    driverActionLoading.value = "";
+  }
+}
+
+async function handleDriverDelivered() {
+  if (!job.value?.id || !canMarkDeliveredFromDetail.value) return;
+
+  driverActionLoading.value = "delivered";
+  driverActionError.value = "";
+
+  try {
+    await markJobDelivered(job.value.id);
+    await loadJob();
+  } catch (error) {
+    console.error("Failed to mark job delivered", error);
+    driverActionError.value = error.response?.data?.message || "Unable to mark this job as delivered.";
+  } finally {
+    driverActionLoading.value = "";
   }
 }
 
@@ -894,7 +973,7 @@ async function handleDownloadProof() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `job-${job.value.id}-proof.${extension}`;
+    link.download = `${deliveryProofDownloadName()}-proof.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1258,6 +1337,41 @@ watch(
             <span class="font-bold">{{ step.label }}</span>
           </li>
         </ol>
+      </section>
+
+      <section v-if="showDriverNextAction" class="tile space-y-3 border-emerald-200 bg-emerald-50/40 p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Next driver action</p>
+            <h2 class="mt-1 text-lg font-black text-slate-950">{{ currentWorkflowStep?.label || 'Complete' }}</h2>
+            <p class="mt-1 text-sm text-slate-600">{{ driverNextActionText }}</p>
+          </div>
+          <div class="grid gap-2 sm:flex sm:flex-wrap">
+            <button
+              v-if="canMarkCollected"
+              type="button"
+              class="btn-primary w-full sm:w-auto"
+              :disabled="driverActionLoading === 'collected'"
+              @click="handleDriverCollected"
+            >
+              <span v-if="driverActionLoading === 'collected'">Updating...</span>
+              <span v-else>Mark collected</span>
+            </button>
+            <button
+              v-if="canMarkDeliveredFromDetail"
+              type="button"
+              class="btn-primary w-full sm:w-auto"
+              :disabled="driverActionLoading === 'delivered'"
+              @click="handleDriverDelivered"
+            >
+              <span v-if="driverActionLoading === 'delivered'">Updating...</span>
+              <span v-else>Mark delivered</span>
+            </button>
+          </div>
+        </div>
+        <p v-if="driverActionError" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+          {{ driverActionError }}
+        </p>
       </section>
 
       <section v-if="false" class="tile p-4">

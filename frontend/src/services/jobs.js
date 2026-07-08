@@ -123,6 +123,11 @@ export async function markJobDelivered(jobId) {
   return data;
 }
 
+export async function markJobCollected(jobId) {
+  const { data } = await api.post(`/jobs/${jobId}/collected`);
+  return data;
+}
+
 export async function sendJobInvoice(jobId) {
   const { data } = await api.post(`/jobs/${jobId}/invoice/send`);
   return data;

@@ -9,9 +9,11 @@ use App\Models\User;
 use App\Notifications\InvoiceReadyNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 class InvoiceFinalizer
 {
@@ -94,7 +96,15 @@ class InvoiceFinalizer
                     ->all();
 
                 if (!empty($recipients)) {
-                    Notification::send($recipients, new InvoiceReadyNotification($invoice));
+                    try {
+                        Notification::send($recipients, new InvoiceReadyNotification($invoice));
+                    } catch (Throwable $exception) {
+                        Log::warning('Invoice notification failed after invoice finalization.', [
+                            'invoice_id' => $invoice->id,
+                            'job_id' => $job->id,
+                            'message' => $exception->getMessage(),
+                        ]);
+                    }
                 }
             });
 

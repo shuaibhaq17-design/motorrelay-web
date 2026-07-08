@@ -224,7 +224,7 @@ class JobController extends Controller
             'transport_type' => $data['transport_type'],
             'pickup_ready_at' => $pickupReadyAt,
             'delivery_due_at' => $deliveryDueAt,
-            'goes_live_at' => now()->addMinutes(3),
+            'goes_live_at' => null,
             'is_urgent' => $isUrgent,
             'urgent_fee_amount' => $urgentFee,
         ]);
