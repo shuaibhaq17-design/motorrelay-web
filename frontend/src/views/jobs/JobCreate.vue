@@ -295,226 +295,283 @@ watch(
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl space-y-6 rounded-2xl border bg-white p-6">
-    <header>
-      <h1 class="text-2xl font-bold text-slate-900">
-        {{ isEdit ? 'Edit Job' : 'Create Job' }}
-      </h1>
-      <p class="text-sm text-slate-600">
-        {{ isEdit ? 'Update pickup, drop-off, vehicle details, price, and transport type.' : 'Include pick-up, drop-off, vehicle details, price, and transport type.' }}
-      </p>
+  <div class="mx-auto max-w-6xl space-y-5">
+    <header class="section-card overflow-hidden bg-gradient-to-br from-white via-emerald-50/70 to-sky-50">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.2em] text-emerald-700">
+            {{ isEdit ? 'Update run' : 'Dealer job' }}
+          </p>
+          <h1 class="mt-2 text-3xl font-black tracking-tight text-slate-950">
+            {{ isEdit ? 'Edit job' : 'Create a new job' }}
+          </h1>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Add the vehicle, route, driver payout, and timing in one clean workflow.
+          </p>
+        </div>
+        <div class="rounded-3xl bg-slate-950 px-5 py-4 text-white shadow-xl">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Driver payout</p>
+          <p class="mt-1 text-3xl font-black">{{ formatMoney(estimatedDriverPayout) }}</p>
+        </div>
+      </div>
     </header>
 
-    <div v-if="loading" class="rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
+    <div v-if="loading" class="section-card text-sm text-slate-600">
       Loading job details...
     </div>
 
-    <p v-else-if="loadError" class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+    <p v-else-if="loadError" class="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
       {{ loadError }}
     </p>
 
-    <form v-else class="space-y-4" @submit.prevent="submit">
-      <div v-if="starterUsageInfo" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-800">
-        <p class="font-semibold text-emerald-900">Starter plan usage</p>
-        <p class="mt-1">Job posts this month: {{ starterUsageInfo.jobUsed }}<span v-if="starterUsageInfo.jobLimit"> / {{ starterUsageInfo.jobLimit }}</span></p>
-        <p>Urgent boosts used: {{ starterUsageInfo.urgentUsed }}<span v-if="starterUsageInfo.urgentLimit"> / {{ starterUsageInfo.urgentLimit }}</span></p>
-        <p v-if="starterUsageInfo.jobRemaining !== null" class="text-xs text-emerald-700">{{ starterUsageInfo.jobRemaining }} job(s) remaining this month.</p>
-      </div>
-      <div>
-        <label class="text-sm font-semibold text-slate-700">Licence plate</label>
-        <input
-          v-model="form.title"
-          type="text"
-          required
-          placeholder="e.g. AB12 CDE"
-          class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-        />
-      </div>
-
-      <div>
-        <label class="text-sm font-semibold text-slate-700">Pickup postcode</label>
-        <input
-          v-model="form.pickup_postcode"
-          type="text"
-          required
-          placeholder="e.g. M1 2AB"
-          class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-        />
-      </div>
-
-      <div>
-        <label class="text-sm font-semibold text-slate-700">Drop-off postcode</label>
-        <input
-          v-model="form.dropoff_postcode"
-          type="text"
-          required
-          placeholder="e.g. LS1 4XY"
-          class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-        />
-      </div>
-
-      <div>
-        <label class="text-sm font-semibold text-slate-700">Vehicle make/model</label>
-        <input
-          v-model="form.vehicle_make"
-          type="text"
-          placeholder="e.g. BMW 3 Series"
-          class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-        />
-      </div>
-
-      <div>
-        <label class="text-sm font-semibold text-slate-700">Price (GBP)</label>
-        <input
-          v-model="form.price"
-          type="number"
-          min="0"
-          required
-          placeholder="e.g. 120"
-          class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-        />
-      </div>
-
-      <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <header>
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Money breakdown</h2>
-          <p class="mt-1 text-xs text-slate-500">
-            This makes the business model clear before a dealer posts the job. Payment collection is still a later integration.
-          </p>
-        </header>
-
-        <dl class="mt-4 grid gap-3 sm:grid-cols-2">
-          <div class="rounded-xl bg-white p-3">
-            <dt class="text-xs font-semibold uppercase text-slate-500">Driver job price</dt>
-            <dd class="mt-1 text-lg font-black text-slate-900">{{ formatMoney(jobPrice) }}</dd>
+    <form v-else class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]" @submit.prevent="submit">
+      <div class="space-y-5">
+        <section v-if="starterUsageInfo" class="section-card border-emerald-200 bg-emerald-50/70 text-sm text-emerald-800">
+          <p class="font-black text-emerald-900">Starter plan usage</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-2xl bg-white/80 p-3">
+              <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Job posts</p>
+              <p class="mt-1 font-black text-slate-950">
+                {{ starterUsageInfo.jobUsed }}<span v-if="starterUsageInfo.jobLimit"> / {{ starterUsageInfo.jobLimit }}</span>
+              </p>
+            </div>
+            <div class="rounded-2xl bg-white/80 p-3">
+              <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Urgent boosts</p>
+              <p class="mt-1 font-black text-slate-950">
+                {{ starterUsageInfo.urgentUsed }}<span v-if="starterUsageInfo.urgentLimit"> / {{ starterUsageInfo.urgentLimit }}</span>
+              </p>
+            </div>
+            <div class="rounded-2xl bg-white/80 p-3">
+              <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Remaining</p>
+              <p class="mt-1 font-black text-slate-950">
+                {{ starterUsageInfo.jobRemaining ?? 'Unlimited' }}
+              </p>
+            </div>
           </div>
-          <div class="rounded-xl bg-white p-3">
-            <dt class="text-xs font-semibold uppercase text-slate-500">Estimated platform fee</dt>
-            <dd class="mt-1 text-lg font-black text-emerald-700">{{ formatMoney(estimatedPlatformFee) }}</dd>
-          </div>
-          <div class="rounded-xl bg-white p-3">
-            <dt class="text-xs font-semibold uppercase text-slate-500">Estimated driver payout</dt>
-            <dd class="mt-1 text-lg font-black text-slate-900">{{ formatMoney(estimatedDriverPayout) }}</dd>
-          </div>
-          <div class="rounded-xl bg-white p-3">
-            <dt class="text-xs font-semibold uppercase text-slate-500">Dealer total before payment fees</dt>
-            <dd class="mt-1 text-lg font-black text-slate-900">{{ formatMoney(estimatedDealerTotal) }}</dd>
-          </div>
-        </dl>
-      </section>
+        </section>
 
-      <div>
-        <label class="text-sm font-semibold text-slate-700">How should the vehicle be moved?</label>
-        <div class="mt-2 flex gap-2">
-          <button
-            v-for="option in transportOptions"
-            :key="option.value"
-            type="button"
-            :class="[
-              'rounded-xl border px-3 py-2 text-sm font-semibold transition',
-              form.transport_type === option.value
-                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                : 'border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'
-            ]"
-            @click="selectTransport(option.value)"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-        <p class="mt-2 text-xs text-slate-500">
-          {{ selectedTransport.helper }}
-        </p>
-      </div>
+        <section class="section-card space-y-5">
+          <header>
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Vehicle</p>
+            <h2 class="mt-1 text-xl font-black text-slate-950">What is being moved?</h2>
+          </header>
 
-      <section class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <header class="mb-3">
-          <h2 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Collection and delivery times</h2>
-          <p class="text-xs text-slate-500">
-            These are optional, but they help drivers decide if they can take the job.
-          </p>
-        </header>
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="block">
+              <span class="text-sm font-bold text-slate-700">Licence plate</span>
+              <input
+                v-model="form.title"
+                type="text"
+                required
+                placeholder="e.g. AB12 CDE"
+                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+            </label>
 
-        <div class="grid gap-4 md:grid-cols-2">
-          <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Vehicle ready from</label>
-            <input
-              v-model="form.pickup_date"
-              type="date"
-              class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-            />
-            <input
-              v-model="form.pickup_time"
-              type="time"
-              class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-            />
+            <label class="block">
+              <span class="text-sm font-bold text-slate-700">Vehicle make/model</span>
+              <input
+                v-model="form.vehicle_make"
+                type="text"
+                placeholder="e.g. BMW 3 Series"
+                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+            </label>
           </div>
+        </section>
+
+        <section class="section-card space-y-5">
+          <header>
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Route</p>
+            <h2 class="mt-1 text-xl font-black text-slate-950">Pickup and drop-off</h2>
+          </header>
+
+          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)] md:items-end">
+            <label class="block">
+              <span class="text-sm font-bold text-slate-700">Pickup postcode</span>
+              <input
+                v-model="form.pickup_postcode"
+                type="text"
+                required
+                placeholder="e.g. M1 2AB"
+                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+            </label>
+
+            <div class="hidden pb-3 md:flex md:items-center md:justify-center">
+              <div class="relative h-10 w-full">
+                <div class="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-emerald-300 to-sky-300"></div>
+                <div class="absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></div>
+                <div class="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-sky-500 ring-4 ring-sky-100"></div>
+                <div class="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-2xl bg-slate-950 text-lg shadow-xl">
+                  🚙
+                </div>
+              </div>
+            </div>
+
+            <label class="block">
+              <span class="text-sm font-bold text-slate-700">Drop-off postcode</span>
+              <input
+                v-model="form.dropoff_postcode"
+                type="text"
+                required
+                placeholder="e.g. LS1 4XY"
+                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section class="section-card space-y-5">
+          <header>
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Movement</p>
+            <h2 class="mt-1 text-xl font-black text-slate-950">Transport and timing</h2>
+          </header>
 
           <div>
-            <label class="text-xs font-semibold uppercase text-slate-500">Deliver by</label>
-            <input
-              v-model="form.delivery_date"
-              type="date"
-              class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-            />
-            <input
-              v-model="form.delivery_time"
-              type="time"
-              class="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-            />
+            <p class="text-sm font-bold text-slate-700">Transport type</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <button
+                v-for="option in transportOptions"
+                :key="option.value"
+                type="button"
+                :class="[
+                  'rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg',
+                  form.transport_type === option.value
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200'
+                ]"
+                @click="selectTransport(option.value)"
+              >
+                <span class="font-black">{{ option.label }}</span>
+                <span class="mt-1 block text-xs leading-5 text-slate-500">{{ option.helper }}</span>
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <section class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-        <label class="flex items-start gap-3">
-          <input
-            v-model="form.is_urgent" :disabled="!canUseUrgentBoost"
-            type="checkbox"
-            class="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
-          />
-          <span>
-            <span class="text-sm font-semibold text-emerald-800">Boost this job</span>
-            <p class="text-xs text-emerald-700">{{ urgentHelperText }}</p>
-          </span>
-        </label>
+          <div class="grid gap-4 md:grid-cols-2">
+            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-black uppercase tracking-wide text-slate-500">Pickup ready</p>
+              <input
+                v-model="form.pickup_date"
+                type="date"
+                class="mt-3 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+              <input
+                v-model="form.pickup_time"
+                type="time"
+                class="mt-3 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+            </div>
 
-        <div
-          v-if="requiresUrgentAcknowledgement"
-          class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800"
-        >
-          <p>This boost adds an extra charge for Starter plans.</p>
-          <label class="mt-2 flex items-start gap-2">
+            <div class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-black uppercase tracking-wide text-slate-500">Delivery due</p>
+              <input
+                v-model="form.delivery_date"
+                type="date"
+                class="mt-3 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+              <input
+                v-model="form.delivery_time"
+                type="time"
+                class="mt-3 w-full rounded-2xl border px-4 py-3 text-sm"
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="space-y-5 lg:sticky lg:top-24 lg:self-start">
+        <section class="section-card space-y-4">
+          <header>
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Payment</p>
+            <h2 class="mt-1 text-xl font-black text-slate-950">Price breakdown</h2>
+          </header>
+
+          <label class="block">
+            <span class="text-sm font-bold text-slate-700">Dealer charge (GBP)</span>
             <input
-              v-model="form.urgent_fee_ack"
-              type="checkbox"
-              class="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500"
+              v-model="form.price"
+              type="number"
+              min="0"
+              required
+              placeholder="e.g. 120"
+              class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
             />
-            <span>I understand an extra boost fee will be added to this job.</span>
           </label>
-        </div>
-        <p v-if="starterUsageInfo && starterUsageInfo.urgentRemaining === 0" class="mt-3 text-xs text-amber-700">
-          Starter urgent boost quota reached for this month.
+
+          <dl class="grid gap-3">
+            <div class="rounded-2xl bg-slate-50 p-4">
+              <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Dealer charge</dt>
+              <dd class="mt-1 text-xl font-black text-slate-950">{{ formatMoney(jobPrice) }}</dd>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 p-4">
+              <dt class="text-xs font-bold uppercase tracking-wide text-emerald-700">Platform fee</dt>
+              <dd class="mt-1 text-xl font-black text-emerald-700">{{ formatMoney(estimatedPlatformFee) }}</dd>
+            </div>
+            <div class="rounded-2xl bg-slate-950 p-4 text-white">
+              <dt class="text-xs font-bold uppercase tracking-wide text-slate-400">Driver receives</dt>
+              <dd class="mt-1 text-2xl font-black">{{ formatMoney(estimatedDriverPayout) }}</dd>
+            </div>
+          </dl>
+
+          <p class="text-xs leading-5 text-slate-500">
+            The driver sees the payout after the platform fee, not the dealer charge.
+          </p>
+        </section>
+
+        <section class="section-card border-emerald-200 bg-emerald-50/70">
+          <label class="flex items-start gap-3">
+            <input
+              v-model="form.is_urgent"
+              :disabled="!canUseUrgentBoost"
+              type="checkbox"
+              class="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>
+              <span class="text-sm font-black text-emerald-900">Add urgent boost</span>
+              <p class="mt-1 text-xs leading-5 text-emerald-800">{{ urgentHelperText }}</p>
+            </span>
+          </label>
+
+          <div
+            v-if="requiresUrgentAcknowledgement"
+            class="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800"
+          >
+            <p>This boost adds an extra charge for Starter plans.</p>
+            <label class="mt-3 flex items-start gap-2">
+              <input
+                v-model="form.urgent_fee_ack"
+                type="checkbox"
+                class="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500"
+              />
+              <span>I understand an extra boost fee will be added to this job.</span>
+            </label>
+          </div>
+          <p v-if="starterUsageInfo && starterUsageInfo.urgentRemaining === 0" class="mt-3 text-xs text-amber-700">
+            Starter urgent boost quota reached for this month.
+          </p>
+        </section>
+
+        <p v-if="errorMessage" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          {{ errorMessage }}
         </p>
-      </section>
 
-      <p class="text-xs text-slate-500">
-        You can edit this job until a driver has been assigned.
-      </p>
-
-      <p v-if="errorMessage" class="text-sm text-red-600">
-        {{ errorMessage }}
-      </p>
-
-      <div class="flex justify-end">
-        <button
-          type="submit"
-          class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="submitting || (requiresUrgentAcknowledgement && !form.urgent_fee_ack)"
-        >
-          <span v-if="submitting">Creating...</span>
-          <span v-else>Create job</span>
-        </button>
-      </div>
+        <section class="section-card space-y-3">
+          <p class="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Ready to post</p>
+          <p class="text-sm text-slate-600">
+            You can edit this job until a driver has been assigned.
+          </p>
+          <button
+            type="submit"
+            class="btn-primary w-full px-5 py-3"
+            :disabled="submitting || (requiresUrgentAcknowledgement && !form.urgent_fee_ack)"
+          >
+            <span v-if="submitting">{{ isEdit ? 'Saving...' : 'Creating...' }}</span>
+            <span v-else>{{ isEdit ? 'Save changes' : 'Create job' }}</span>
+          </button>
+        </section>
+      </aside>
     </form>
   </div>
 </template>

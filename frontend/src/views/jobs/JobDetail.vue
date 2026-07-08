@@ -596,14 +596,41 @@ const showDriverRequestPanel = computed(() => {
   if (job.value.assigned_to_id) return false;
   return String(job.value.status || "").toLowerCase() === "open";
 });
-const requestPanelTitle = computed(() => (myApplication.value ? "Request sent" : "Want this job?"));
+const requestPanelTitle = computed(() => {
+  const status = String(myApplication.value?.status || '').toLowerCase();
+
+  if (status === 'accepted') return 'Request accepted';
+  if (status === 'declined') return 'Request declined';
+  if (status === 'pending') return 'Request sent';
+
+  return 'Want this job?';
+});
 const requestPanelText = computed(() => {
-  if (myApplication.value) {
+  const status = String(myApplication.value?.status || '').toLowerCase();
+
+  if (status === 'accepted') {
+    return 'The dealer accepted your request. This job will appear in your current jobs.';
+  }
+
+  if (status === 'declined') {
+    return 'The dealer chose another driver for this run.';
+  }
+
+  if (status === 'pending') {
     return "Your request has been sent to the dealer. If they choose you, this job will move into your current jobs.";
   }
 
   return "Request this job so the dealer can review you and assign the run.";
 });
+
+function applicationBadgeClass(status) {
+  const normalized = String(status || '').toLowerCase();
+
+  if (normalized === 'accepted') return 'bg-emerald-600 text-white ring-emerald-600';
+  if (normalized === 'declined') return 'bg-rose-50 text-rose-700 ring-rose-200';
+
+  return 'bg-white text-emerald-700 ring-emerald-200';
+}
 
 const transportLabel = computed(() => {
   const raw = (job.value?.transport_type || '').toString().toLowerCase();
@@ -1131,8 +1158,20 @@ watch(
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Driver request</p>
-            <h2 class="mt-1 text-xl font-black text-slate-950">{{ requestPanelTitle }}</h2>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <h2 class="text-xl font-black text-slate-950">{{ requestPanelTitle }}</h2>
+              <span
+                v-if="myApplication"
+                class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-bold ring-1"
+                :class="applicationBadgeClass(myApplication.status)"
+              >
+                {{ myApplication.status }}
+              </span>
+            </div>
             <p class="mt-1 text-sm text-emerald-900">{{ requestPanelText }}</p>
+            <p v-if="myApplication?.message" class="mt-2 text-xs text-emerald-800">
+              Your note: {{ myApplication.message }}
+            </p>
           </div>
           <button
             v-if="canRequestJob"
@@ -1974,23 +2013,6 @@ watch(
           Invoice finalised.
           <RouterLink to="/invoices" class="font-semibold text-emerald-800 underline">View invoices</RouterLink>
         </div>
-      </section>
-
-      <section v-if="myApplication && !canReviewApplications" class="tile space-y-3 p-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Your application</h2>
-        <p class="text-sm text-slate-600">
-          Status:
-          <span class="font-semibold text-slate-900">{{ myApplication.status }}</span>
-          <span v-if="myApplication.responded_at" class="text-xs text-slate-500">
-            (updated {{ new Date(myApplication.responded_at).toLocaleString() }})
-          </span>
-        </p>
-        <p class="text-sm text-slate-600" v-if="myApplication.message">
-          Your note: {{ myApplication.message }}
-        </p>
-        <p class="text-xs text-slate-500">
-          The dealer will review applications and confirm the assignment. You will be notified when selected.
-        </p>
       </section>
 
       <section v-if="false" class="tile space-y-4 p-4">

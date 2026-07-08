@@ -415,8 +415,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div :class="isDealer ? 'space-y-5' : 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]'">
-    <div class="space-y-4">
+  <div class="space-y-5">
+    <div class="flex flex-col gap-4">
     <div
       class="section-card overflow-hidden"
       :class="isDealer ? 'border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-sky-50' : ''"
@@ -590,7 +590,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="showActiveSection" class="section-card space-y-4">
+    <section v-if="showActiveSection" class="section-card order-1 space-y-4">
       <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-black text-slate-950">
           {{ isDriver ? 'Your active jobs' : isDealer ? 'Your posted jobs' : 'Active jobs' }}
@@ -703,7 +703,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="isDriver" id="completed-jobs" class="section-card space-y-4">
+    <section v-if="isDriver" id="completed-jobs" class="section-card order-3 space-y-4">
       <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 class="text-xl font-black tracking-tight text-slate-950">Completed jobs</h2>
@@ -754,7 +754,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section v-if="isDriver || isAdmin" class="section-card space-y-4">
+    <section v-if="isDriver || isAdmin" class="section-card order-2 space-y-4">
       <header class="flex items-center justify-between gap-3" v-if="isDriver">
         <h2 class="text-xl font-black tracking-tight text-slate-950">Available jobs</h2>
         <span class="text-xs font-semibold text-slate-500">
@@ -818,39 +818,6 @@ onMounted(async () => {
     </section>
     </div>
 
-    <aside v-if="!isDealer" class="section-card h-fit space-y-4 lg:sticky lg:top-24">
-      <h2 class="text-xl font-black tracking-tight text-slate-950">
-        {{ isDealer ? 'Dealer workflow' : 'Job tips' }}
-      </h2>
-      <p class="text-sm text-slate-600">
-        <template v-if="isDealer">
-          Create a job, choose a driver, take payment, approve proof, then release payout.
-        </template>
-        <template v-else>
-          Keep your pipeline organised: drivers upload delivery proof, then dealers approve completion and download invoices.
-        </template>
-      </p>
-      <RouterLink
-        v-if="isDealer"
-        to="/jobs/new"
-        class="btn-primary w-full"
-      >
-        Create job
-      </RouterLink>
-      <a
-        href="#completed-jobs"
-        class="btn-secondary w-full border-emerald-200 bg-emerald-50 text-emerald-700"
-      >
-        View completed jobs
-      </a>
-      <RouterLink
-        v-if="auth.hasPlannerAccess"
-        to="/planner"
-        class="btn-secondary w-full text-xs"
-      >
-        Open planner
-      </RouterLink>
-    </aside>
   </div>
 
   <div
