@@ -111,7 +111,9 @@ class StripePaymentController extends Controller
         if ($user->stripe_account_id) {
             try {
                 $stripe = $this->stripeClient();
-                $stripe->v2->core->accounts->close($user->stripe_account_id);
+                $stripe->v2->core->accounts->close($user->stripe_account_id, [
+                    'applied_configurations' => ['recipient'],
+                ]);
             } catch (ApiErrorException $exception) {
                 return response()->json([
                     'message' => 'Stripe could not disconnect this payout account. Try again or contact support.',

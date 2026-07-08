@@ -9,6 +9,7 @@ const auth = useAuthStore();
 const payoutSetupLoading = ref(false);
 const payoutDisconnectLoading = ref(false);
 const payoutSetupError = ref('');
+const showDisconnectModal = ref(false);
 
 const isDriver = computed(() => auth.role === 'driver');
 const hasStripePayoutAccount = computed(() => Boolean(auth.user?.stripe_account_id));
@@ -116,11 +117,17 @@ async function handlePayoutSetup() {
   }
 }
 
-async function handlePayoutDisconnect() {
-  if (!window.confirm('Disconnect Stripe payouts? You will not be able to receive driver payouts until you set this up again.')) {
-    return;
-  }
+function openPayoutDisconnectModal() {
+  payoutSetupError.value = '';
+  showDisconnectModal.value = true;
+}
 
+function closePayoutDisconnectModal() {
+  if (payoutDisconnectLoading.value) return;
+  showDisconnectModal.value = false;
+}
+
+async function confirmPayoutDisconnect() {
   payoutDisconnectLoading.value = true;
   payoutSetupError.value = '';
 
@@ -133,6 +140,7 @@ async function handlePayoutDisconnect() {
       stripe_charges_enabled: false,
       stripe_payouts_enabled: false
     };
+    showDisconnectModal.value = false;
   } catch (error) {
     console.error('Failed to disconnect Stripe payout account', error);
     payoutSetupError.value = error.response?.data?.message || error.message || 'Could not disconnect payout account.';
@@ -256,10 +264,9 @@ const profileLinks = computed(() => {
               type="button"
               class="btn-secondary w-full whitespace-nowrap border-rose-200 bg-white px-5 py-3 text-rose-700 hover:bg-rose-50 md:w-auto"
               :disabled="payoutSetupLoading || payoutDisconnectLoading"
-              @click="handlePayoutDisconnect"
+              @click="openPayoutDisconnectModal"
             >
-              <span v-if="payoutDisconnectLoading">Disconnecting...</span>
-              <span v-else>Disconnect</span>
+              Disconnect
             </button>
           </div>
         </div>
@@ -352,5 +359,47 @@ const profileLinks = computed(() => {
         Logout
       </button>
     </aside>
+
+    <Teleport to="body">
+      <div
+        v-if="showDisconnectModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
+        @click.self="closePayoutDisconnectModal"
+      >
+        <div class="w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl">
+          <div class="flex items-start gap-4">
+            <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700">
+              !
+            </div>
+            <div>
+              <h2 class="text-lg font-black text-slate-950">Disconnect Stripe payouts?</h2>
+              <p class="mt-2 text-sm leading-6 text-slate-600">
+                You will not be able to receive driver payouts until Stripe setup is connected again.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              class="btn-secondary w-full sm:w-auto"
+              :disabled="payoutDisconnectLoading"
+              @click="closePayoutDisconnectModal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn-primary w-full bg-rose-600 hover:bg-rose-700 sm:w-auto"
+              :disabled="payoutDisconnectLoading"
+              @click="confirmPayoutDisconnect"
+            >
+              <span v-if="payoutDisconnectLoading">Disconnecting...</span>
+              <span v-else>Disconnect account</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
