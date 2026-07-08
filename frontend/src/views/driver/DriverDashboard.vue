@@ -20,6 +20,21 @@ function formatPrice(value) {
   return priceFormatter.format(Number(value || 0));
 }
 
+function driverPayoutForJob(job) {
+  const storedPayout = Number(job?.driver_payout_amount || 0);
+  if (storedPayout > 0) return storedPayout;
+
+  const price = Number(job?.price || 0);
+  const storedFee = Number(job?.platform_fee_amount || 0);
+  const platformFee = storedFee > 0 ? storedFee : Math.round(price * 0.1 * 100) / 100;
+
+  return Math.max(price - platformFee, 0);
+}
+
+function formatDriverPayout(job) {
+  return formatPrice(driverPayoutForJob(job));
+}
+
 function formatDate(value) {
   if (!value) return '--';
   try {
@@ -146,8 +161,8 @@ onMounted(async () => {
               </p>
             </div>
             <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Value</p>
-              <p class="mt-1 font-black text-emerald-700">{{ formatPrice(currentJob.price) }}</p>
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Driver payout</p>
+              <p class="mt-1 font-black text-emerald-700">{{ formatDriverPayout(currentJob) }}</p>
             </div>
             <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Status</p>
@@ -240,15 +255,16 @@ onMounted(async () => {
       </section>
 
       <section class="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">Active jobs</h2>
             <p class="text-xs text-slate-500">
               Jobs currently assigned to you. Update status from the job detail screen.
             </p>
           </div>
-          <RouterLink to="/jobs" class="text-xs font-semibold text-emerald-600 hover:underline">
-            View jobs ->
+          <RouterLink to="/jobs" class="btn-secondary inline-flex w-full justify-center px-4 py-2 text-sm sm:w-auto">
+            View jobs
+            <span aria-hidden="true">→</span>
           </RouterLink>
         </div>
 
@@ -269,7 +285,7 @@ onMounted(async () => {
                   {{ job.title || `Job #${job.id}` }}
                 </p>
                 <p class="text-xs text-slate-500">
-                  {{ job.pickup_postcode || '--' }} -> {{ job.dropoff_postcode || '--' }}
+                  {{ job.pickup_postcode || '--' }} → {{ job.dropoff_postcode || '--' }}
                 </p>
                 <p class="text-xs text-slate-500">
                   Posted by {{ job.posted_by?.name || 'Dealer' }}
@@ -277,7 +293,7 @@ onMounted(async () => {
               </div>
               <div class="text-right">
                 <div class="text-lg font-bold text-emerald-600">
-                  {{ formatPrice(job.price) }}
+                  {{ formatDriverPayout(job) }}
                 </div>
                 <span class="badge bg-emerald-100 text-emerald-700">{{ job.status }}</span>
               </div>
@@ -287,15 +303,16 @@ onMounted(async () => {
       </section>
 
       <section class="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">Pending applications</h2>
             <p class="text-xs text-slate-500">
               Dealers will review and confirm your application. You will be notified once accepted.
             </p>
           </div>
-          <RouterLink to="/jobs" class="text-xs font-semibold text-emerald-600 hover:underline">
-            Browse jobs ->
+          <RouterLink to="/jobs" class="btn-secondary inline-flex w-full justify-center px-4 py-2 text-sm sm:w-auto">
+            Browse jobs
+            <span aria-hidden="true">→</span>
           </RouterLink>
         </div>
 
@@ -323,7 +340,7 @@ onMounted(async () => {
               </div>
               <div class="text-right">
                 <div class="text-lg font-bold text-emerald-600">
-                  {{ formatPrice(application.job?.price) }}
+                  {{ formatDriverPayout(application.job) }}
                 </div>
                 <span class="badge bg-amber-100 text-amber-700">{{ application.status }}</span>
               </div>
@@ -336,15 +353,16 @@ onMounted(async () => {
       </section>
 
       <section class="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">Recently completed</h2>
             <p class="text-xs text-slate-500">
               A quick snapshot of the latest closed jobs. Explore everything from your scorecard.
             </p>
           </div>
-          <RouterLink to="/profile" class="text-xs font-semibold text-emerald-600 hover:underline">
-            View scorecard ->
+          <RouterLink to="/profile" class="btn-secondary inline-flex w-full justify-center px-4 py-2 text-sm sm:w-auto">
+            View scorecard
+            <span aria-hidden="true">→</span>
           </RouterLink>
         </div>
 
@@ -364,12 +382,12 @@ onMounted(async () => {
                   {{ job.title || `Job #${job.id}` }}
                 </p>
                 <p class="text-xs text-slate-500">
-                  {{ job.pickup_postcode || '--' }} -> {{ job.dropoff_postcode || '--' }}
+                  {{ job.pickup_postcode || '--' }} → {{ job.dropoff_postcode || '--' }}
                 </p>
               </div>
               <div class="text-right">
                 <div class="text-lg font-bold text-emerald-600">
-                  {{ formatPrice(job.price) }}
+                  {{ formatDriverPayout(job) }}
                 </div>
                 <span class="badge bg-slate-200 text-slate-800">{{ job.status }}</span>
               </div>

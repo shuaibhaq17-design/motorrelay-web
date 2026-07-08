@@ -96,17 +96,6 @@ onMounted(() => {
   }
 });
 
-const completedJobs = computed(() => {
-  const jobs = Array.isArray(auth.completedJobs) ? auth.completedJobs : [];
-  return [...jobs].sort((a, b) => {
-    const aTime = new Date(a?.created_at ?? 0).getTime();
-    const bTime = new Date(b?.created_at ?? 0).getTime();
-    return bTime - aTime;
-  });
-});
-
-const hasCompletedJobs = computed(() => completedJobs.value.length > 0);
-const recentCompletedJobs = computed(() => completedJobs.value.slice(0, 8));
 const dealerJobs = computed(() => {
   const jobs = Array.isArray(auth.postedJobs) ? auth.postedJobs : [];
   return [...jobs].sort((a, b) => {
@@ -147,29 +136,6 @@ const dealerQuickLinks = [
     description: 'Talk to assigned drivers'
   }
 ];
-
-const priceFormatter = new Intl.NumberFormat('en-GB', {
-  style: 'currency',
-  currency: 'GBP',
-  maximumFractionDigits: 0
-});
-
-function formatPrice(value) {
-  return priceFormatter.format(Number(value || 0));
-}
-
-function formatDate(value) {
-  if (!value) return '--';
-  try {
-    return new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function dealerNextAction(job) {
   if (!job?.assigned_to_id) return 'Review driver requests';
@@ -395,7 +361,7 @@ const profileLinks = computed(() => {
           </RouterLink>
         </div>
 
-        <div class="mt-6">
+        <div v-if="!isDriver" class="mt-6">
           <div class="flex items-center justify-between gap-3">
             <h3 class="text-sm font-black text-slate-950">Recent posted jobs</h3>
             <RouterLink to="/jobs" class="text-xs font-bold text-emerald-700 hover:text-emerald-800">
@@ -451,52 +417,6 @@ const profileLinks = computed(() => {
           </RouterLink>
         </div>
 
-        <div class="mt-6">
-          <div class="flex items-center justify-between gap-2">
-            <h3 class="text-sm font-semibold text-slate-900">Completed &amp; closed jobs</h3>
-            <span class="text-xs text-slate-500">
-              Showing latest {{ recentCompletedJobs.length }} of {{ completedJobs.length }}
-            </span>
-          </div>
-          <p class="mt-1 text-xs text-slate-500">
-            Jobs marked as <span class="font-semibold">completed</span> or <span class="font-semibold">closed</span> appear here for quick reference.
-          </p>
-
-          <div
-            v-if="!hasCompletedJobs"
-            class="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600"
-          >
-            You have no completed or closed jobs yet.
-          </div>
-
-          <div v-else class="mt-4 space-y-3">
-            <article
-              v-for="job in recentCompletedJobs"
-              :key="job.id"
-              class="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-            >
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div class="text-base font-semibold text-slate-900">
-                    {{ formatPrice(job.price) }}
-                  </div>
-                  <p class="text-xs text-slate-500">
-                    Completed {{ formatDate(job.created_at) }}
-                  </p>
-                </div>
-                <span class="badge bg-emerald-100 text-emerald-700">
-                  {{ job.status }}
-                </span>
-              </div>
-              <p class="mt-2 text-sm text-slate-700">
-                {{ job.title || job.company || 'MotorRelay job' }}
-              </p>
-              <p class="text-xs text-slate-500">
-                {{ job.pickup_postcode || 'Pickup' }} to {{ job.dropoff_postcode || 'Drop-off' }}
-              </p>
-            </article>
-          </div>
-        </div>
       </section>
     </div>
 

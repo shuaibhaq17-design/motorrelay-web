@@ -37,6 +37,21 @@ const priceFormatter = new Intl.NumberFormat('en-GB', {
   maximumFractionDigits: 0
 });
 
+function driverPayoutForJob(job) {
+  const storedPayout = Number(job?.driver_payout_amount || 0);
+  if (storedPayout > 0) return storedPayout;
+
+  const price = Number(job?.price || 0);
+  const storedFee = Number(job?.platform_fee_amount || 0);
+  const platformFee = storedFee > 0 ? storedFee : Math.round(price * 0.1 * 100) / 100;
+
+  return Math.max(price - platformFee, 0);
+}
+
+function visibleAmountForJob(job) {
+  return isDriver.value ? driverPayoutForJob(job) : Number(job?.price ?? 0);
+}
+
 async function loadJobs() {
   successMessage.value = '';
   availableLoading.value = true;
@@ -143,10 +158,10 @@ const isDriver = computed(() => auth.role === 'driver');
 const isDealer = computed(() => auth.role === 'dealer');
 const isAdmin = computed(() => auth.role === 'admin');
 const showActiveSection = computed(() => isDriver.value || isDealer.value || isAdmin.value);
-const showCompletedSection = computed(() => false);
+const showCompletedSection = computed(() => isDriver.value || isDealer.value);
 const dealerPipelineJobs = computed(() => {
   const byId = new Map();
-  [...availableJobs.value, ...activeJobs.value].forEach((job) => {
+  [...availableJobs.value, ...activeJobs.value, ...completedJobs.value].forEach((job) => {
     if (job?.id) byId.set(job.id, job);
   });
 
@@ -157,7 +172,7 @@ const dealerPipelineJobs = computed(() => {
   });
 });
 const mainJobs = computed(() => {
-  if (isDealer.value) return dealerPipelineJobs.value;
+  if (isDealer.value) return [...availableJobs.value, ...activeJobs.value];
   return activeJobs.value;
 });
 const dealerStats = computed(() => ({
@@ -233,6 +248,34 @@ function dealerNextAction(job) {
   if (paymentStatus === 'payout_released') return 'Paid out';
   if (['in_progress', 'accepted', 'collected', 'in_transit'].includes(status)) return 'Track delivery';
   return 'View job';
+}
+
+function dealerCurrentStage(job) {
+  const status = String(job?.status || '').toLowerCase();
+  const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
+  const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
+
+  if (paymentStatus === 'payout_released') return 'Payout released';
+  if (completionStatus === 'approved' || status === 'completed') return 'Approved';
+  if (completionStatus === 'submitted') return 'Proof uploaded';
+  if (['delivered', 'completion_pending'].includes(status)) return 'Delivered';
+  if (paymentStatus === 'paid') return 'Payment held';
+  if (paymentStatus === 'checkout_pending') return 'Payment pending';
+  if (job?.assigned_to_id) return 'Driver assigned';
+  return 'Open for requests';
+}
+
+function dealerMovingTo(job) {
+  const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
+  const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
+
+  if (paymentStatus === 'payout_released') return 'Complete';
+  if (completionStatus === 'approved') return job?.stripe_transfer_id ? 'Complete' : 'Release payout';
+  if (completionStatus === 'submitted') return 'Approve proof';
+  if (!job?.assigned_to_id) return 'Choose driver';
+  if (paymentStatus === 'unpaid') return 'Take payment';
+  if (paymentStatus === 'checkout_pending') return 'Confirm payment';
+  return 'Delivery proof';
 }
 
 function paymentLabel(job) {
@@ -348,6 +391,19 @@ function formatTransportType(value) {
     return '--';
   }
   return value;
+}
+
+function formatDate(value) {
+  if (!value) return '--';
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }
 
 onMounted(async () => {
@@ -486,6 +542,54 @@ onMounted(async () => {
       Loading jobs&hellip;
     </div>
 
+    <section v-if="isDealer" class="section-card space-y-4">
+      <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-xl font-black tracking-tight text-slate-950">Job progress</h2>
+          <p class="text-sm text-slate-600">Minimal status view for every posted job.</p>
+        </div>
+        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+          {{ dealerPipelineJobs.length }} jobs
+        </span>
+      </header>
+
+      <div v-if="activeLoading || completedLoading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
+        Loading job progress...
+      </div>
+
+      <div v-else-if="!dealerPipelineJobs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        No dealer jobs yet. Create a job to start tracking progress.
+      </div>
+
+      <div v-else class="space-y-2">
+        <RouterLink
+          v-for="job in dealerPipelineJobs"
+          :key="`progress-${job.id}`"
+          :to="`/jobs/${job.id}`"
+          class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md xl:flex-row xl:items-center xl:justify-between"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-base font-black text-slate-950">{{ job.title || `Job #${job.id}` }}</p>
+            <p class="mt-1 text-sm text-slate-600">
+              {{ job.pickup_postcode || '--' }} → {{ job.dropoff_postcode || '--' }}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end">
+            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+              Now: {{ dealerCurrentStage(job) }}
+            </span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+              Next: {{ dealerMovingTo(job) }}
+            </span>
+            <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
+              Updated {{ formatDate(job.updated_at || job.created_at) }}
+            </span>
+          </div>
+        </RouterLink>
+      </div>
+    </section>
+
     <section v-if="showActiveSection" class="section-card space-y-4">
       <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-black text-slate-950">
@@ -552,9 +656,9 @@ onMounted(async () => {
             </div>
 
             <div class="rounded-3xl bg-slate-950 p-4 text-white lg:min-w-[180px] lg:text-right">
-              <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Job value</p>
+              <p class="text-xs font-bold uppercase tracking-wide text-slate-400">{{ isDriver ? 'Driver payout' : 'Job value' }}</p>
               <div class="mt-1 text-3xl font-black">
-                {{ priceFormatter.format(Number(job.price ?? 0)) }}
+                {{ priceFormatter.format(visibleAmountForJob(job)) }}
               </div>
               <span v-if="!isDealer" class="badge mt-3 bg-emerald-100 text-emerald-700">{{ job.status }}</span>
             </div>
@@ -599,13 +703,60 @@ onMounted(async () => {
       </div>
     </section>
 
-    <div v-if="isDriver" class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
-      Looking for historical runs? <RouterLink to="/profile" class="font-semibold text-emerald-600 hover:underline">View completed jobs in your profile</RouterLink>.
-    </div>
+    <section v-if="isDriver" id="completed-jobs" class="section-card space-y-4">
+      <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-xl font-black tracking-tight text-slate-950">Completed jobs</h2>
+          <p class="text-xs text-slate-500">Finished runs and delivery history live here, not in your profile.</p>
+        </div>
+        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+          {{ completedJobs.length }} completed
+        </span>
+      </header>
+
+      <div v-if="completedLoading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
+        Loading completed jobs...
+      </div>
+
+      <div v-else-if="completedErrorMessage" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+        {{ completedErrorMessage }}
+      </div>
+
+      <div v-else-if="!completedJobs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        You have no completed jobs yet.
+      </div>
+
+      <div v-else class="space-y-3">
+        <RouterLink
+          v-for="job in completedJobs"
+          :key="job.id"
+          :to="`/jobs/${job.id}`"
+          class="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-lg"
+        >
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
+              <p class="text-xl font-black tracking-tight text-slate-950">{{ job.title || `Job #${job.id}` }}</p>
+              <p class="mt-1 text-xs text-slate-500">
+                Completed {{ formatDate(job.completed_at || job.updated_at || job.created_at) }}
+              </p>
+              <p class="mt-2 text-sm text-slate-600">
+                {{ job.pickup_postcode || '--' }} → {{ job.dropoff_postcode || '--' }}
+              </p>
+            </div>
+            <div class="flex items-center gap-2 sm:flex-col sm:items-end">
+              <span class="text-lg font-black text-slate-950">
+                {{ priceFormatter.format(driverPayoutForJob(job)) }}
+              </span>
+              <span class="badge bg-slate-900 text-white">{{ job.status }}</span>
+            </div>
+          </div>
+        </RouterLink>
+      </div>
+    </section>
 
     <section v-if="isDriver || isAdmin" class="section-card space-y-4">
       <header class="flex items-center justify-between gap-3" v-if="isDriver">
-        <h2 class="text-lg font-semibold text-slate-900">Available jobs</h2>
+        <h2 class="text-xl font-black tracking-tight text-slate-950">Available jobs</h2>
         <span class="text-xs font-semibold text-slate-500">
           {{ visibleJobs.length }} listed
         </span>
@@ -629,8 +780,9 @@ onMounted(async () => {
         >
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
+              <p v-if="isDriver" class="text-xs font-bold uppercase tracking-wide text-slate-500">Driver payout</p>
               <div class="text-2xl font-black text-slate-950">
-                {{ priceFormatter.format(Number(job.price ?? 0)) }}
+                {{ priceFormatter.format(visibleAmountForJob(job)) }}
               </div>
               <p class="text-sm text-slate-600">
                 {{ job.company || 'Customer' }} - {{ job.vehicle_make || 'Vehicle' }}
@@ -667,7 +819,7 @@ onMounted(async () => {
     </div>
 
     <aside v-if="!isDealer" class="section-card h-fit space-y-4 lg:sticky lg:top-24">
-      <h2 class="text-sm font-semibold text-slate-900">
+      <h2 class="text-xl font-black tracking-tight text-slate-950">
         {{ isDealer ? 'Dealer workflow' : 'Job tips' }}
       </h2>
       <p class="text-sm text-slate-600">
@@ -685,12 +837,12 @@ onMounted(async () => {
       >
         Create job
       </RouterLink>
-      <RouterLink
-        to="/profile/completed"
+      <a
+        href="#completed-jobs"
         class="btn-secondary w-full border-emerald-200 bg-emerald-50 text-emerald-700"
       >
         View completed jobs
-      </RouterLink>
+      </a>
       <RouterLink
         v-if="auth.hasPlannerAccess"
         to="/planner"

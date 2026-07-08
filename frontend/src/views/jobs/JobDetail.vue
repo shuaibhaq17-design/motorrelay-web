@@ -398,18 +398,23 @@ const completionStatus = computed(() => job.value?.completion_status ?? "not_sub
 
 const canSubmitCompletion = computed(() => {
   if (!isAssignedDriver.value) return false;
+  if (!['paid', 'payout_released'].includes(paymentStatus.value)) return false;
   return !job.value?.finalized_invoice_id;
 });
 const canMarkCollected = computed(() => {
   if (!isAssignedDriver.value) return false;
+  if (!['paid', 'payout_released'].includes(paymentStatus.value)) return false;
   return ['accepted', 'in_progress'].includes(String(job.value?.status || '').toLowerCase());
 });
 const canMarkDeliveredFromDetail = computed(() => {
   if (!isAssignedDriver.value) return false;
+  if (!['paid', 'payout_released'].includes(paymentStatus.value)) return false;
   return ['collected', 'in_transit'].includes(String(job.value?.status || '').toLowerCase());
 });
 const driverNextActionText = computed(() => {
   if (!isAssignedDriver.value) return '';
+  if (paymentStatus.value === 'unpaid') return 'Waiting for the dealer to confirm this job is ready to start.';
+  if (paymentStatus.value === 'checkout_pending') return 'Waiting for the dealer to finish confirming this job.';
   if (canMarkCollected.value) return 'Collect the vehicle, then tap “Mark collected”.';
   if (canMarkDeliveredFromDetail.value) return 'Deliver the vehicle, then tap “Mark delivered”.';
   if (canSubmitCompletion.value && !hasDeliveryProof.value) return 'Upload delivery proof so the dealer can approve the job.';
@@ -422,6 +427,7 @@ const showDriverNextAction = computed(() => Boolean(driverNextActionText.value))
 
 const canApproveCompletion = computed(() => {
   if (!(currentRole.value === "admin" || isDealerForJob.value)) return false;
+  if (!['paid', 'payout_released'].includes(paymentStatus.value)) return false;
   return completionStatus.value === "submitted";
 });
 
@@ -555,6 +561,8 @@ const driverPayoutAmount = computed(() => {
   return stored > 0 ? stored : Math.max(jobBasePrice.value - platformFeeAmount.value, 0);
 });
 const dealerPaymentAmount = computed(() => jobBasePrice.value + urgentFeeAmount.value);
+const headerDisplayAmount = computed(() => (currentRole.value === 'driver' ? driverPayoutAmount.value : jobBasePrice.value));
+const headerDisplayLabel = computed(() => (currentRole.value === 'driver' ? 'Driver payout' : 'Job value'));
 const canStartCheckout = computed(() => {
   if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
   if (!job.value.assigned_to_id) return false;
@@ -1085,8 +1093,9 @@ watch(
           </p>
         </div>
         <div class="text-right">
+          <p class="text-xs font-bold uppercase tracking-wide text-slate-500">{{ headerDisplayLabel }}</p>
           <div class="text-3xl font-extrabold text-emerald-600">
-            {{ priceFormatter.format(Number(job.price ?? 0)) }}
+            {{ priceFormatter.format(headerDisplayAmount) }}
           </div>
           <div class="badge bg-slate-100 text-slate-800">
             {{ job.status }}

@@ -321,12 +321,12 @@ watch(
         <p v-if="starterUsageInfo.jobRemaining !== null" class="text-xs text-emerald-700">{{ starterUsageInfo.jobRemaining }} job(s) remaining this month.</p>
       </div>
       <div>
-        <label class="text-sm font-semibold text-slate-700">Title</label>
+        <label class="text-sm font-semibold text-slate-700">Licence plate</label>
         <input
           v-model="form.title"
           type="text"
           required
-          placeholder="e.g. Deliver Audi A3 to Manchester"
+          placeholder="e.g. AB12 CDE"
           class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
         />
       </div>

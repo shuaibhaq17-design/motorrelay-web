@@ -37,7 +37,7 @@ class DriverDashboardController extends Controller
 
         $applications = JobApplication::query()
             ->with([
-                'job:id,title,price,status,posted_by_id,created_at',
+                'job:id,title,price,platform_fee_amount,driver_payout_amount,status,posted_by_id,created_at',
                 'job.postedBy:id,name,email',
             ])
             ->where('driver_id', $user->id)
@@ -50,7 +50,7 @@ class DriverDashboardController extends Controller
             'completed_count' => $completedJobs->count(),
             'pending_applications' => $applications->count(),
             'total_earnings' => $completedJobs->reduce(function ($carry, $job) {
-                return $carry + (float) ($job->price ?? 0);
+                return $carry + $this->driverPayoutFor($job);
             }, 0.0),
         ];
 
@@ -60,5 +60,21 @@ class DriverDashboardController extends Controller
             'applications' => $applications,
             'completed' => $completedJobs->take(20)->values(),
         ]);
+    }
+
+    protected function driverPayoutFor($job): float
+    {
+        $storedPayout = (float) ($job->driver_payout_amount ?? 0);
+
+        if ($storedPayout > 0) {
+            return $storedPayout;
+        }
+
+        $price = (float) ($job->price ?? 0);
+        $storedFee = (float) ($job->platform_fee_amount ?? 0);
+        $feePercent = (float) config('stripe.platform_fee_percent', 10);
+        $platformFee = $storedFee > 0 ? $storedFee : round($price * ($feePercent / 100), 2);
+
+        return max(round($price - $platformFee, 2), 0);
     }
 }

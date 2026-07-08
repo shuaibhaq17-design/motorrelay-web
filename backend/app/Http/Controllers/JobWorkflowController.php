@@ -54,6 +54,8 @@ class JobWorkflowController extends Controller
             abort(403, 'You cannot update this job.');
         }
 
+        $this->ensureDealerPaymentHeld($job);
+
         $job->update([
             'status' => 'collected'
         ]);
@@ -67,6 +69,8 @@ class JobWorkflowController extends Controller
         if (!$user || (!$user->isAdmin() && $job->assigned_to_id !== $user->id)) {
             abort(403, 'You cannot update this job.');
         }
+
+        $this->ensureDealerPaymentHeld($job);
 
         $job->update([
             'status' => 'delivered'
@@ -155,6 +159,8 @@ class JobWorkflowController extends Controller
             abort(422, 'This job has already been finalized.');
         }
 
+        $this->ensureDealerPaymentHeld($job);
+
         $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:2000'],
             'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:' . config('invoices.proof_max_size_kb')],
@@ -201,6 +207,8 @@ class JobWorkflowController extends Controller
         if (!$job->delivery_proof_path) {
             abort(422, 'Delivery proof is required before approval.');
         }
+
+        $this->ensureDealerPaymentHeld($job);
 
         $job->loadMissing(['expenses']);
         $invoice = $finalizer->finalize($job, $user);
@@ -319,6 +327,13 @@ class JobWorkflowController extends Controller
         }
 
         Notification::send($job->postedBy, new JobStatusNotification($job, $event, $meta));
+    }
+
+    protected function ensureDealerPaymentHeld(Job $job): void
+    {
+        if (!in_array($job->payment_status, ['paid', 'payout_released'], true)) {
+            abort(422, 'Dealer payment must be held before the driver can progress this job.');
+        }
     }
 
     protected function summariseInvoice(Invoice $invoice): array
