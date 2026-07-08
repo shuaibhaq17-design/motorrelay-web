@@ -14,6 +14,7 @@ use App\Http\Controllers\JobTrackingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\StripePaymentController;
 use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\VehicleLookupController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/register', [AuthController::class, 'register']);
@@ -27,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     Route::get('/profile', [UserProfileController::class, 'show']);
+    Route::get('/vehicles/registration/{registration}', [VehicleLookupController::class, 'show']);
     Route::get('/driver/overview', [DriverDashboardController::class, 'show']);
     Route::get('/account/change-requests', [AccountChangeRequestController::class, 'index']);
     Route::post('/account/change-requests', [AccountChangeRequestController::class, 'store']);

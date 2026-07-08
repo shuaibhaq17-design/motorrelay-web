@@ -581,6 +581,45 @@ const paymentActionHelp = computed(() => {
   if (paymentStatus.value === 'payout_released') return 'Driver payout has been released.';
   return 'Take payment, choose a driver, approve proof, then release payout.';
 });
+const paymentCardEyebrow = computed(() => {
+  if (paymentStatus.value === 'unpaid') return 'Next step';
+  if (paymentStatus.value === 'checkout_pending') return 'Payment pending';
+  if (paymentStatus.value === 'payout_released') return 'Payout complete';
+  return 'Payment secured';
+});
+const paymentCardTitle = computed(() => {
+  if (paymentStatus.value === 'unpaid') return 'Pay upfront';
+  if (paymentStatus.value === 'checkout_pending') return 'Finish payment';
+  if (paymentStatus.value === 'payout_released') return 'Driver paid';
+  return 'Dealer payment held';
+});
+const paymentCardDescription = computed(() => {
+  if (paymentStatus.value === 'unpaid') {
+    return 'Take payment before this job is offered to drivers.';
+  }
+  if (paymentStatus.value === 'checkout_pending') {
+    return 'Stripe checkout has started. Refresh after the dealer completes payment.';
+  }
+  if (paymentStatus.value === 'payout_released') {
+    return 'The driver payout has been released for this completed job.';
+  }
+  return 'Funds are held by MotorRelay until delivery proof is approved.';
+});
+const paymentStatusBadgeClass = computed(() => {
+  if (paymentStatus.value === 'paid') return 'bg-emerald-100 text-emerald-700';
+  if (paymentStatus.value === 'payout_released') return 'bg-slate-900 text-white';
+  if (paymentStatus.value === 'checkout_pending') return 'bg-amber-100 text-amber-700';
+  return 'bg-white text-slate-800';
+});
+const paymentConfirmationText = computed(() => {
+  if (paymentStatus.value === 'paid') {
+    return 'Payment confirmed. Funds are held until delivery proof is approved.';
+  }
+  if (paymentStatus.value === 'payout_released') {
+    return 'Payout released. This payment workflow is complete.';
+  }
+  return '';
+});
 
 const myApplication = computed(() => job.value?.my_application ?? null);
 const canRequestJob = computed(() => {
@@ -1361,13 +1400,13 @@ watch(
       >
         <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Next step</p>
-            <h2 class="mt-1 text-lg font-black text-slate-950">Take payment</h2>
+            <p class="text-xs font-bold uppercase tracking-wide text-sky-700">{{ paymentCardEyebrow }}</p>
+            <h2 class="mt-1 text-lg font-black text-slate-950">{{ paymentCardTitle }}</h2>
             <p class="text-sm text-slate-600">
-              Take dealer payment now. MotorRelay holds it until delivery proof is approved.
+              {{ paymentCardDescription }}
             </p>
           </div>
-          <span class="badge bg-white text-slate-800 uppercase">{{ paymentStatus }}</span>
+          <span class="badge uppercase" :class="paymentStatusBadgeClass">{{ paymentStatus }}</span>
         </header>
 
         <dl class="grid gap-3 text-sm sm:grid-cols-3">
@@ -1395,6 +1434,9 @@ watch(
         </p>
         <p v-if="paymentNotice" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
           {{ paymentNotice }}
+        </p>
+        <p v-else-if="paymentConfirmationText" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+          {{ paymentConfirmationText }}
         </p>
 
         <div class="grid gap-2 sm:flex sm:flex-wrap">

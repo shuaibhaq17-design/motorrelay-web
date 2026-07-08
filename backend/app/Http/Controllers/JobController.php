@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
+use App\Services\VehicleLookupService;
 
 class JobController extends Controller
 {
@@ -129,7 +130,7 @@ class JobController extends Controller
         return response()->json($jobs);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, VehicleLookupService $vehicles): JsonResponse
     {
         $user = $request->user();
 
@@ -149,6 +150,8 @@ class JobController extends Controller
             'is_urgent' => ['nullable', 'boolean'],
             'urgent_accept_fee' => ['nullable', 'boolean'],
         ]);
+
+        $vehicle = $vehicles->lookup($data['title']);
 
         $planSlug = $user->plan_slug ?? Str::slug((string) $user->plan, '_');
         $planLimits = config("jobs.plan_limits.{$planSlug}", []);
@@ -217,13 +220,13 @@ class JobController extends Controller
         $job = Job::create([
             'status' => 'open',
             'posted_by_id' => $user->id,
-            'title' => $data['title'],
+            'title' => $vehicle['registration'],
             'pickup_postcode' => $data['pickup_postcode'],
             'pickup_label' => $data['pickup_postcode'],
             'dropoff_postcode' => $data['dropoff_postcode'],
             'dropoff_label' => $data['dropoff_postcode'],
-            'vehicle_make' => $data['vehicle_make'] ?? null,
-            'vehicle_type' => null,
+            'vehicle_make' => $vehicle['display_name'],
+            'vehicle_type' => $vehicle['vehicle_type'],
             'price' => $data['price'],
             'transport_type' => $data['transport_type'],
             'pickup_ready_at' => $pickupReadyAt,
@@ -297,7 +300,7 @@ class JobController extends Controller
         return response()->json($job);
     }
 
-    public function update(Request $request, Job $job): JsonResponse
+    public function update(Request $request, Job $job, VehicleLookupService $vehicles): JsonResponse
     {
         $user = $request->user();
 
@@ -337,6 +340,15 @@ class JobController extends Controller
         }
 
         $updates = $data;
+
+        if (array_key_exists('title', $updates)) {
+            $vehicle = $vehicles->lookup($updates['title']);
+            $updates['title'] = $vehicle['registration'];
+            $updates['vehicle_make'] = $vehicle['display_name'];
+            $updates['vehicle_type'] = $vehicle['vehicle_type'];
+        } else {
+            unset($updates['vehicle_make']);
+        }
 
         if (array_key_exists('pickup_postcode', $updates)) {
             $updates['pickup_label'] = $updates['pickup_postcode'];

@@ -36,6 +36,9 @@ const submitting = ref(false);
 const errorMessage = ref('');
 const loading = ref(false);
 const loadError = ref('');
+const vehicleLookupLoading = ref(false);
+const vehicleLookupError = ref('');
+const verifiedVehicle = ref(null);
 
 const transportOptions = [
   {
@@ -91,9 +94,58 @@ function formatMoney(value) {
   return moneyFormatter.format(Number(value || 0));
 }
 
+function normaliseRegistration(value) {
+  return (value || '').toString().replace(/[^a-z0-9]/gi, '').toUpperCase();
+}
+
+async function lookupVehicle() {
+  const registration = normaliseRegistration(form.title);
+  vehicleLookupError.value = '';
+  verifiedVehicle.value = null;
+  form.vehicle_make = '';
+
+  if (!registration) {
+    vehicleLookupError.value = 'Enter a registration plate first.';
+    return;
+  }
+
+  form.title = registration;
+  vehicleLookupLoading.value = true;
+
+  try {
+    const { data } = await api.get(`/vehicles/registration/${encodeURIComponent(registration)}`);
+    const vehicle = data?.data ?? data ?? null;
+    if (!vehicle?.registration) {
+      throw new Error('No vehicle details were returned for this registration.');
+    }
+
+    verifiedVehicle.value = vehicle;
+    form.title = vehicle.registration;
+    form.vehicle_make = vehicle.display_name || [vehicle.make, vehicle.model].filter(Boolean).join(' ') || '';
+  } catch (error) {
+    console.error('Vehicle lookup failed', error);
+    vehicleLookupError.value = error.response?.data?.message || error.message || 'Could not verify this registration.';
+  } finally {
+    vehicleLookupLoading.value = false;
+  }
+}
+
 function selectTransport(value) {
   form.transport_type = value;
 }
+
+watch(
+  () => form.title,
+  (next) => {
+    const registration = normaliseRegistration(next);
+    const verifiedRegistration = verifiedVehicle.value?.registration || '';
+
+    if (verifiedRegistration && registration !== verifiedRegistration) {
+      verifiedVehicle.value = null;
+      form.vehicle_make = '';
+    }
+  }
+);
 
 watch(
   () => form.is_urgent,
@@ -166,6 +218,10 @@ async function submit() {
   errorMessage.value = '';
 
   try {
+    if (!verifiedVehicle.value && !isEdit.value) {
+      throw new Error('Verify the registration plate before creating this job.');
+    }
+
     if (requiresUrgentAcknowledgement.value && !form.urgent_fee_ack) {
       throw new Error('Please acknowledge the urgent boost fee before continuing.');
     }
@@ -181,7 +237,6 @@ async function submit() {
       title: form.title,
       pickup_postcode: form.pickup_postcode,
       dropoff_postcode: form.dropoff_postcode,
-      vehicle_make: form.vehicle_make,
       price: Number(form.price || 0),
       transport_type: form.transport_type,
       pickup_ready_at: buildDateTime(form.pickup_date, form.pickup_time),
@@ -265,6 +320,11 @@ async function loadJobForEditing() {
       is_urgent: Boolean(job.is_urgent),
       urgent_fee_ack: Boolean(job.is_urgent)
     });
+    verifiedVehicle.value = {
+      registration: normaliseRegistration(job.title || ''),
+      display_name: job.vehicle_make || '',
+      vehicle_type: job.vehicle_type || null,
+    };
   } catch (error) {
     console.error('Failed to load job for editing', error);
     loadError.value =
@@ -361,7 +421,7 @@ watch(
             <h2 class="mt-1 text-xl font-black text-slate-950">What is being moved?</h2>
           </header>
 
-          <div class="grid gap-4 md:grid-cols-2">
+          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
             <label class="block">
               <span class="text-sm font-bold text-slate-700">Licence plate</span>
               <input
@@ -369,20 +429,49 @@ watch(
                 type="text"
                 required
                 placeholder="e.g. AB12 CDE"
+                :readonly="isEdit"
+                @blur="!isEdit && lookupVehicle()"
                 class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
               />
             </label>
 
-            <label class="block">
-              <span class="text-sm font-bold text-slate-700">Vehicle make/model</span>
-              <input
-                v-model="form.vehicle_make"
-                type="text"
-                placeholder="e.g. BMW 3 Series"
-                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
-              />
-            </label>
+            <button
+              v-if="!isEdit"
+              type="button"
+              class="btn-secondary w-full md:w-auto"
+              :disabled="vehicleLookupLoading || !form.title"
+              @click="lookupVehicle"
+            >
+              <span v-if="vehicleLookupLoading">Checking...</span>
+              <span v-else>Check plate</span>
+            </button>
           </div>
+
+          <p v-if="vehicleLookupError" class="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+            {{ vehicleLookupError }}
+          </p>
+
+          <div
+            v-if="verifiedVehicle"
+            class="grid gap-3 rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4 sm:grid-cols-3"
+          >
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Verified plate</p>
+              <p class="mt-1 text-lg font-black text-slate-950">{{ verifiedVehicle.registration }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Vehicle</p>
+              <p class="mt-1 text-lg font-black text-slate-950">{{ form.vehicle_make || '--' }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Details</p>
+              <p class="mt-1 text-lg font-black text-slate-950">{{ verifiedVehicle.vehicle_type || '--' }}</p>
+            </div>
+          </div>
+
+          <p v-else class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            Enter the registration plate and MotorRelay will pull the vehicle details automatically. Dealers cannot type vehicle details manually.
+          </p>
         </section>
 
         <section class="section-card space-y-5">
