@@ -18,7 +18,9 @@ const auth = useAuthStore();
 const defaultFormState = {
   title: '',
   pickup_postcode: '',
+  pickup_label: '',
   dropoff_postcode: '',
+  dropoff_label: '',
   vehicle_make: '',
   price: '',
   transport_type: 'drive_away',
@@ -39,6 +41,22 @@ const loadError = ref('');
 const vehicleLookupLoading = ref(false);
 const vehicleLookupError = ref('');
 const verifiedVehicle = ref(null);
+const addressLookup = reactive({
+  pickup: {
+    loading: false,
+    error: '',
+    postcode: '',
+    addresses: [],
+    selected: null
+  },
+  dropoff: {
+    loading: false,
+    error: '',
+    postcode: '',
+    addresses: [],
+    selected: null
+  }
+});
 
 const transportOptions = [
   {
@@ -96,6 +114,93 @@ function formatMoney(value) {
 
 function normaliseRegistration(value) {
   return (value || '').toString().replace(/[^a-z0-9]/gi, '').toUpperCase();
+}
+
+function normalisePostcode(value) {
+  return (value || '').toString().replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function addressState(type) {
+  return addressLookup[type];
+}
+
+async function lookupAddresses(type) {
+  const state = addressState(type);
+  const postcodeField = `${type}_postcode`;
+  const labelField = `${type}_label`;
+  const postcode = normalisePostcode(form[postcodeField]);
+
+  state.error = '';
+  state.addresses = [];
+  state.selected = null;
+  form[labelField] = '';
+
+  if (!postcode) {
+    state.error = 'Enter a postcode first.';
+    return;
+  }
+
+  form[postcodeField] = postcode;
+  state.loading = true;
+
+  try {
+    const { data } = await api.get(`/postcodes/${encodeURIComponent(postcode)}/addresses`);
+    const result = data?.data ?? data ?? {};
+    state.postcode = result.postcode || postcode;
+    state.addresses = Array.isArray(result.addresses) ? result.addresses : [];
+
+    if (!state.addresses.length) {
+      throw new Error('No addresses were returned for this postcode.');
+    }
+  } catch (error) {
+    console.error('Postcode lookup failed', error);
+    state.error = error.response?.data?.message || error.message || 'Could not find addresses for this postcode.';
+  } finally {
+    state.loading = false;
+  }
+}
+
+function selectAddress(type, selectedId) {
+  const state = addressState(type);
+  const address = state.addresses.find((item) => item.id === selectedId);
+  if (!address) return;
+
+  state.selected = address;
+  form[`${type}_label`] = address.label;
+}
+
+function changeAddress(type) {
+  const state = addressState(type);
+  state.error = '';
+  state.addresses = [];
+  state.selected = null;
+  state.postcode = '';
+  form[`${type}_label`] = '';
+}
+
+function usePostcodeOnly(type) {
+  const state = addressState(type);
+  const postcodeField = `${type}_postcode`;
+  const postcode = normalisePostcode(form[postcodeField]);
+
+  if (!postcode) {
+    state.error = 'Enter a postcode first.';
+    return;
+  }
+
+  form[postcodeField] = postcode;
+  form[`${type}_label`] = postcode;
+  state.error = '';
+  state.addresses = [];
+  state.selected = { id: 'postcode-only', label: postcode };
+}
+
+function hydrateSelectedAddress(type, label, postcode) {
+  const state = addressState(type);
+  state.error = '';
+  state.addresses = [];
+  state.postcode = normalisePostcode(postcode);
+  state.selected = label ? { id: 'saved', label } : null;
 }
 
 async function lookupVehicle() {
@@ -236,6 +341,14 @@ async function submit() {
       throw new Error('Verify the registration plate before creating this job.');
     }
 
+    if (!form.pickup_label) {
+      throw new Error('Find and select the exact pickup address.');
+    }
+
+    if (!form.dropoff_label) {
+      throw new Error('Find and select the exact drop-off address.');
+    }
+
     if (requiresUrgentAcknowledgement.value && !form.urgent_fee_ack) {
       throw new Error('Please acknowledge the urgent boost fee before continuing.');
     }
@@ -250,7 +363,9 @@ async function submit() {
     const payload = {
       title: form.title,
       pickup_postcode: form.pickup_postcode,
+      pickup_label: form.pickup_label,
       dropoff_postcode: form.dropoff_postcode,
+      dropoff_label: form.dropoff_label,
       price: Number(form.price || 0),
       transport_type: form.transport_type,
       pickup_ready_at: buildDateTime(form.pickup_date, form.pickup_time),
@@ -285,6 +400,10 @@ async function submit() {
 
 function resetForm() {
   Object.assign(form, { ...defaultFormState });
+  verifiedVehicle.value = null;
+  vehicleLookupError.value = '';
+  hydrateSelectedAddress('pickup', '', '');
+  hydrateSelectedAddress('dropoff', '', '');
 }
 
 function splitDateTime(value) {
@@ -323,7 +442,9 @@ async function loadJobForEditing() {
     Object.assign(form, {
       title: job.title || '',
       pickup_postcode: job.pickup_postcode || '',
+      pickup_label: job.pickup_label || job.pickup_postcode || '',
       dropoff_postcode: job.dropoff_postcode || '',
+      dropoff_label: job.dropoff_label || job.dropoff_postcode || '',
       vehicle_make: job.vehicle_make || '',
       price: job.price != null ? String(job.price) : '',
       transport_type: job.transport_type || 'drive_away',
@@ -339,6 +460,8 @@ async function loadJobForEditing() {
       display_name: job.vehicle_make || '',
       vehicle_type: job.vehicle_type || null,
     };
+    hydrateSelectedAddress('pickup', form.pickup_label, form.pickup_postcode);
+    hydrateSelectedAddress('dropoff', form.dropoff_label, form.dropoff_postcode);
   } catch (error) {
     console.error('Failed to load job for editing', error);
     loadError.value =
@@ -502,21 +625,83 @@ watch(
           <header>
             <p class="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Route</p>
             <h2 class="mt-1 text-xl font-black text-slate-950">Pickup and drop-off</h2>
+            <p class="mt-1 text-sm text-slate-600">
+              Enter each postcode, choose the exact address, then MotorRelay locks it into the job.
+            </p>
           </header>
 
-          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)] md:items-end">
-            <label class="block">
-              <span class="text-sm font-bold text-slate-700">Pickup postcode</span>
-              <input
-                v-model="form.pickup_postcode"
-                type="text"
-                required
-                placeholder="e.g. M1 2AB"
-                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
-              />
-            </label>
+          <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_120px_minmax(0,1fr)] md:items-start">
+            <div class="space-y-3">
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label class="block">
+                  <span class="text-sm font-bold text-slate-700">Pickup postcode</span>
+                  <input
+                    v-model="form.pickup_postcode"
+                    type="text"
+                    required
+                    :readonly="Boolean(form.pickup_label)"
+                    placeholder="e.g. M1 2AB"
+                    class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+                    :class="form.pickup_label ? 'bg-slate-100 font-black text-slate-700' : ''"
+                  />
+                </label>
+                <button
+                  v-if="!form.pickup_label"
+                  type="button"
+                  class="btn-secondary w-full sm:w-auto"
+                  :disabled="addressLookup.pickup.loading || !form.pickup_postcode"
+                  @click="lookupAddresses('pickup')"
+                >
+                  <span v-if="addressLookup.pickup.loading">Finding...</span>
+                  <span v-else>Find address</span>
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="btn-secondary w-full sm:w-auto"
+                  @click="changeAddress('pickup')"
+                >
+                  Change
+                </button>
+              </div>
 
-            <div class="hidden pb-3 md:flex md:items-center md:justify-center">
+              <p v-if="addressLookup.pickup.error" class="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {{ addressLookup.pickup.error }}
+              </p>
+              <button
+                v-if="addressLookup.pickup.error && !form.pickup_label"
+                type="button"
+                class="btn-secondary w-full"
+                @click="usePostcodeOnly('pickup')"
+              >
+                Use pickup postcode only for testing
+              </button>
+
+              <label v-if="addressLookup.pickup.addresses.length && !form.pickup_label" class="block">
+                <span class="text-sm font-bold text-slate-700">Select pickup address</span>
+                <select
+                  class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+                  @change="selectAddress('pickup', $event.target.value)"
+                >
+                  <option value="">Choose the exact pickup address</option>
+                  <option
+                    v-for="address in addressLookup.pickup.addresses"
+                    :key="address.id"
+                    :value="address.id"
+                  >
+                    {{ address.label }}
+                  </option>
+                </select>
+              </label>
+
+              <div v-if="form.pickup_label" class="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4">
+                <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Pickup address locked</p>
+                <p class="mt-1 text-base font-black text-slate-950">{{ form.pickup_label }}</p>
+                <p class="mt-1 text-sm text-slate-600">{{ form.pickup_postcode }}</p>
+              </div>
+            </div>
+
+            <div class="hidden pt-10 md:flex md:items-center md:justify-center">
               <div class="relative h-10 w-full">
                 <div class="absolute left-0 right-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-emerald-300 to-sky-300"></div>
                 <div class="absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></div>
@@ -527,16 +712,75 @@ watch(
               </div>
             </div>
 
-            <label class="block">
-              <span class="text-sm font-bold text-slate-700">Drop-off postcode</span>
-              <input
-                v-model="form.dropoff_postcode"
-                type="text"
-                required
-                placeholder="e.g. LS1 4XY"
-                class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
-              />
-            </label>
+            <div class="space-y-3">
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label class="block">
+                  <span class="text-sm font-bold text-slate-700">Drop-off postcode</span>
+                  <input
+                    v-model="form.dropoff_postcode"
+                    type="text"
+                    required
+                    :readonly="Boolean(form.dropoff_label)"
+                    placeholder="e.g. LS1 4XY"
+                    class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+                    :class="form.dropoff_label ? 'bg-slate-100 font-black text-slate-700' : ''"
+                  />
+                </label>
+                <button
+                  v-if="!form.dropoff_label"
+                  type="button"
+                  class="btn-secondary w-full sm:w-auto"
+                  :disabled="addressLookup.dropoff.loading || !form.dropoff_postcode"
+                  @click="lookupAddresses('dropoff')"
+                >
+                  <span v-if="addressLookup.dropoff.loading">Finding...</span>
+                  <span v-else>Find address</span>
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="btn-secondary w-full sm:w-auto"
+                  @click="changeAddress('dropoff')"
+                >
+                  Change
+                </button>
+              </div>
+
+              <p v-if="addressLookup.dropoff.error" class="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {{ addressLookup.dropoff.error }}
+              </p>
+              <button
+                v-if="addressLookup.dropoff.error && !form.dropoff_label"
+                type="button"
+                class="btn-secondary w-full"
+                @click="usePostcodeOnly('dropoff')"
+              >
+                Use drop-off postcode only for testing
+              </button>
+
+              <label v-if="addressLookup.dropoff.addresses.length && !form.dropoff_label" class="block">
+                <span class="text-sm font-bold text-slate-700">Select drop-off address</span>
+                <select
+                  class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+                  @change="selectAddress('dropoff', $event.target.value)"
+                >
+                  <option value="">Choose the exact drop-off address</option>
+                  <option
+                    v-for="address in addressLookup.dropoff.addresses"
+                    :key="address.id"
+                    :value="address.id"
+                  >
+                    {{ address.label }}
+                  </option>
+                </select>
+              </label>
+
+              <div v-if="form.dropoff_label" class="rounded-3xl border border-sky-200 bg-sky-50/70 p-4">
+                <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Drop-off address locked</p>
+                <p class="mt-1 text-base font-black text-slate-950">{{ form.dropoff_label }}</p>
+                <p class="mt-1 text-sm text-slate-600">{{ form.dropoff_postcode }}</p>
+              </div>
+            </div>
           </div>
         </section>
 

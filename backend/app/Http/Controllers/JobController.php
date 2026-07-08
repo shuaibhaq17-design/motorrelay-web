@@ -141,7 +141,9 @@ class JobController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'pickup_postcode' => ['required', 'string', 'max:20'],
+            'pickup_label' => ['required', 'string', 'max:255'],
             'dropoff_postcode' => ['required', 'string', 'max:20'],
+            'dropoff_label' => ['required', 'string', 'max:255'],
             'vehicle_make' => ['nullable', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
             'transport_type' => ['required', Rule::in(['drive_away', 'trailer'])],
@@ -222,9 +224,9 @@ class JobController extends Controller
             'posted_by_id' => $user->id,
             'title' => $vehicle['registration'],
             'pickup_postcode' => $data['pickup_postcode'],
-            'pickup_label' => $data['pickup_postcode'],
+            'pickup_label' => $data['pickup_label'],
             'dropoff_postcode' => $data['dropoff_postcode'],
-            'dropoff_label' => $data['dropoff_postcode'],
+            'dropoff_label' => $data['dropoff_label'],
             'vehicle_make' => $vehicle['display_name'],
             'vehicle_type' => $vehicle['vehicle_type'],
             'price' => $data['price'],
@@ -320,7 +322,9 @@ class JobController extends Controller
             'title' => ['sometimes', 'string', 'max:255'],
             'price' => ['sometimes', 'numeric', 'min:0'],
             'pickup_postcode' => ['sometimes', 'string', 'max:20'],
+            'pickup_label' => ['sometimes', 'string', 'max:255'],
             'dropoff_postcode' => ['sometimes', 'string', 'max:20'],
+            'dropoff_label' => ['sometimes', 'string', 'max:255'],
             'vehicle_make' => ['nullable', 'string', 'max:255'],
             'transport_type' => ['sometimes', Rule::in(['drive_away', 'trailer'])],
             'pickup_ready_at' => ['sometimes', 'nullable', 'date'],
@@ -350,11 +354,11 @@ class JobController extends Controller
             unset($updates['vehicle_make']);
         }
 
-        if (array_key_exists('pickup_postcode', $updates)) {
+        if (array_key_exists('pickup_postcode', $updates) && !array_key_exists('pickup_label', $updates)) {
             $updates['pickup_label'] = $updates['pickup_postcode'];
         }
 
-        if (array_key_exists('dropoff_postcode', $updates)) {
+        if (array_key_exists('dropoff_postcode', $updates) && !array_key_exists('dropoff_label', $updates)) {
             $updates['dropoff_label'] = $updates['dropoff_postcode'];
         }
 

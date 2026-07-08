@@ -12,6 +12,7 @@ use App\Http\Controllers\JobController;
 use App\Http\Controllers\JobWorkflowController;
 use App\Http\Controllers\JobTrackingController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\PostcodeLookupController;
 use App\Http\Controllers\StripePaymentController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\VehicleLookupController;
@@ -29,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/profile', [UserProfileController::class, 'show']);
     Route::get('/vehicles/registration/{registration}', [VehicleLookupController::class, 'show']);
+    Route::get('/postcodes/{postcode}/addresses', [PostcodeLookupController::class, 'show']);
     Route::get('/driver/overview', [DriverDashboardController::class, 'show']);
     Route::get('/account/change-requests', [AccountChangeRequestController::class, 'index']);
     Route::post('/account/change-requests', [AccountChangeRequestController::class, 'store']);
