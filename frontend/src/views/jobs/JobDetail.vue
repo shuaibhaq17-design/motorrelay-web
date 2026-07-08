@@ -15,10 +15,9 @@ import {
   rejectJobCompletion,
   downloadExpenseReceipt,
   downloadDeliveryProof,
-  updateJobLocation,
-  dealerCompleteJob
+  updateJobLocation
 } from "@/services/jobs";
-import { createJobCheckout, releaseDriverPayout } from "@/services/payments";
+import { createJobCheckout, releaseDriverPayout, syncJobPayment } from "@/services/payments";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
@@ -68,10 +67,10 @@ const trackingState = reactive({
   lastUpdate: null
 });
 const navigationModalOpen = ref(false);
-const dealerCompletionLoading = ref(false);
 const checkoutLoading = ref(false);
 const payoutReleaseLoading = ref(false);
 const paymentError = ref("");
+const paymentNotice = ref("");
 
 const priceFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -416,6 +415,11 @@ const workflowSteps = computed(() => {
       complete: Boolean(job.value.assigned_to_id)
     },
     {
+      label: 'Dealer payment held',
+      help: 'The dealer pays MotorRelay before payout can be released.',
+      complete: ['paid', 'payout_released'].includes(paymentStatus.value)
+    },
+    {
       label: 'Vehicle delivered',
       help: 'The assigned driver marks the vehicle as delivered.',
       complete: deliveredStatuses.has(status) || completionStatus.value !== 'not_submitted'
@@ -429,27 +433,34 @@ const workflowSteps = computed(() => {
       label: 'Approved and invoiced',
       help: 'The dealer approves completion and the invoice becomes available.',
       complete: invoiceFinalized.value || completionStatus.value === 'approved'
+    },
+    {
+      label: 'Driver paid out',
+      help: 'MotorRelay releases the driver payout after approval.',
+      complete: paymentStatus.value === 'payout_released'
     }
   ];
-});
-const canDealerComplete = computed(() => {
-  if (!job.value || !isDealerForJob.value) return false;
-  const status = String(job.value.status || '').toLowerCase();
-  if (invoiceFinalized.value) return false;
-  const allowed = new Set(["accepted", "in_progress", "collected", "in_transit", "delivered", "completion_pending"]);
-  return allowed.has(status);
 });
 const paymentStatus = computed(() => job.value?.payment_status || 'unpaid');
 const canStartCheckout = computed(() => {
   if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
   if (!job.value.assigned_to_id) return false;
-  return !['paid', 'payout_released'].includes(paymentStatus.value);
+  return !['checkout_pending', 'paid', 'payout_released'].includes(paymentStatus.value);
 });
 const canReleasePayout = computed(() => {
   if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
   if (paymentStatus.value !== 'paid') return false;
   if (!hasDeliveryProof.value) return false;
-  return ['submitted', 'approved'].includes(completionStatus.value) && !job.value.stripe_transfer_id;
+  return completionStatus.value === 'approved' && !job.value.stripe_transfer_id;
+});
+const paymentActionHelp = computed(() => {
+  if (!job.value?.assigned_to_id) return 'Assign a driver first, then take payment.';
+  if (paymentStatus.value === 'unpaid') return 'Take dealer payment before the driver starts or before completion.';
+  if (paymentStatus.value === 'checkout_pending') return 'Checkout has started. If the dealer paid, use refresh or wait for Stripe to confirm.';
+  if (paymentStatus.value === 'paid' && completionStatus.value !== 'approved') return 'Payment is held. Payout unlocks only after delivery proof is approved.';
+  if (paymentStatus.value === 'paid' && completionStatus.value === 'approved') return 'Delivery is approved. You can now release the driver payout.';
+  if (paymentStatus.value === 'payout_released') return 'Driver payout has been released.';
+  return 'Assign a driver, take payment, approve proof, then release payout.';
 });
 
 const myApplication = computed(() => job.value?.my_application ?? null);
@@ -717,30 +728,6 @@ async function handleRejectCompletion() {
   }
 }
 
-async function handleDealerComplete() {
-  if (!job.value || !canDealerComplete.value || dealerCompletionLoading.value) return;
-
-  const confirm = window.confirm('Mark this job as completed and issue the invoice? This will notify the driver.');
-  if (!confirm) {
-    return;
-  }
-
-  dealerCompletionLoading.value = true;
-  try {
-    const response = await dealerCompleteJob(job.value.id);
-    if (response?.job) {
-      job.value = response.job;
-    } else {
-      await loadJob();
-    }
-  } catch (error) {
-    console.error('Failed to complete job as dealer', error);
-    alert(error.response?.data?.message || 'Unable to mark this job as completed.');
-  } finally {
-    dealerCompletionLoading.value = false;
-  }
-}
-
 async function handleCheckout() {
   if (!job.value?.id) return;
 
@@ -757,6 +744,27 @@ async function handleCheckout() {
   } catch (error) {
     console.error("Failed to create Stripe checkout", error);
     paymentError.value = error.response?.data?.message || error.message || "Could not start payment.";
+  } finally {
+    checkoutLoading.value = false;
+  }
+}
+
+async function handlePaymentSync(sessionId = null) {
+  if (!job.value?.id) return;
+
+  checkoutLoading.value = true;
+  paymentError.value = "";
+  paymentNotice.value = "";
+
+  try {
+    const payload = await syncJobPayment(job.value.id, sessionId);
+    job.value = payload?.job ?? job.value;
+    paymentNotice.value = payload?.payment_status === "paid"
+      ? "Payment confirmed. Funds are now held by MotorRelay until delivery is approved."
+      : "Payment is not confirmed yet. If the dealer finished checkout, try again in a moment.";
+  } catch (error) {
+    console.error("Failed to sync Stripe payment", error);
+    paymentError.value = error.response?.data?.message || error.message || "Could not refresh payment status.";
   } finally {
     checkoutLoading.value = false;
   }
@@ -815,6 +823,11 @@ onMounted(async () => {
     await auth.fetchMe().catch(() => null);
   }
   await loadJob();
+  if (route.query.payment === "success") {
+    await handlePaymentSync(route.query.session_id || null);
+  } else if (route.query.payment === "cancelled") {
+    paymentNotice.value = "Stripe checkout was cancelled. No payment was taken.";
+  }
 });
 
 watch(
@@ -982,24 +995,6 @@ watch(
           </select>
         </div>
 
-        <div
-          v-if="canDealerComplete"
-          class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
-        >
-          <div class="flex-1">
-            <p class="font-semibold text-emerald-900">Destination reached?</p>
-            <p>Mark this job as completed and trigger the driver invoice.</p>
-          </div>
-          <button
-            type="button"
-            class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-            :disabled="dealerCompletionLoading"
-            @click="handleDealerComplete"
-          >
-            <span v-if="dealerCompletionLoading">Processing...</span>
-            <span v-else>Mark job completed</span>
-          </button>
-        </div>
       </section>
 
       <section
@@ -1034,6 +1029,9 @@ watch(
         <p v-if="paymentError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
           {{ paymentError }}
         </p>
+        <p v-if="paymentNotice" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+          {{ paymentNotice }}
+        </p>
 
         <div class="grid gap-2 sm:flex sm:flex-wrap">
           <button
@@ -1045,6 +1043,16 @@ watch(
           >
             <span v-if="checkoutLoading">Opening checkout...</span>
             <span v-else>Pay for this job</span>
+          </button>
+          <button
+            v-if="paymentStatus === 'checkout_pending'"
+            type="button"
+            class="btn-secondary w-full sm:w-auto"
+            :disabled="checkoutLoading"
+            @click="handlePaymentSync()"
+          >
+            <span v-if="checkoutLoading">Checking payment...</span>
+            <span v-else>Refresh payment status</span>
           </button>
           <button
             v-if="canReleasePayout"
@@ -1060,7 +1068,13 @@ watch(
             v-if="!canStartCheckout && !canReleasePayout"
             class="text-xs text-slate-500"
           >
-            Assign a driver first, then take payment. Payout unlocks after proof is submitted and payment is complete.
+            {{ paymentActionHelp }}
+          </p>
+          <p
+            v-else
+            class="w-full text-xs text-slate-500"
+          >
+            {{ paymentActionHelp }}
           </p>
         </div>
       </section>

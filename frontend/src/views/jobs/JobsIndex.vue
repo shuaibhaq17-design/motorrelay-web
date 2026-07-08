@@ -144,6 +144,22 @@ const isDealer = computed(() => auth.role === 'dealer');
 const isAdmin = computed(() => auth.role === 'admin');
 const showActiveSection = computed(() => isDriver.value || isDealer.value || isAdmin.value);
 const showCompletedSection = computed(() => false);
+const dealerPipelineJobs = computed(() => {
+  const byId = new Map();
+  [...availableJobs.value, ...activeJobs.value].forEach((job) => {
+    if (job?.id) byId.set(job.id, job);
+  });
+
+  return [...byId.values()].sort((a, b) => {
+    const aTime = new Date(a?.created_at ?? a?.pickup_ready_at ?? 0).getTime();
+    const bTime = new Date(b?.created_at ?? b?.pickup_ready_at ?? 0).getTime();
+    return bTime - aTime;
+  });
+});
+const mainJobs = computed(() => {
+  if (isDealer.value) return dealerPipelineJobs.value;
+  return activeJobs.value;
+});
 const pageIntro = computed(() => {
   if (isDriver.value) {
     return {
@@ -180,7 +196,7 @@ const processSteps = computed(() => {
 });
 const activeEmptyMessage = computed(() => {
   if (isDriver.value) return 'No assigned jobs yet. Browse available jobs below and request one when you are ready.';
-  if (isDealer.value) return 'No active dealer jobs yet. Create a job or assign a driver to start.';
+  if (isDealer.value) return 'No dealer jobs yet. Create a job to start receiving driver requests.';
   return 'No active jobs right now.';
 });
 const availableEmptyMessage = computed(() => {
@@ -191,6 +207,27 @@ const availableEmptyMessage = computed(() => {
 
 function hasApplied(jobId) {
   return appliedJobIds.value.has(jobId);
+}
+
+function dealerNextAction(job) {
+  const status = String(job?.status || '').toLowerCase();
+  const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
+  const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
+
+  if (!job?.assigned_to_id) return 'Review driver requests';
+  if (paymentStatus === 'unpaid') return 'Take payment';
+  if (paymentStatus === 'checkout_pending') return 'Refresh payment';
+  if (completionStatus === 'submitted') return 'Approve delivery proof';
+  if (paymentStatus === 'paid' && completionStatus === 'approved' && !job?.stripe_transfer_id) return 'Release driver payout';
+  if (paymentStatus === 'payout_released') return 'Paid out';
+  if (['in_progress', 'accepted', 'collected', 'in_transit'].includes(status)) return 'Track delivery';
+  return 'View job';
+}
+
+function canEditDealerJob(job) {
+  if (!isDealer.value) return false;
+  const status = String(job?.status || '').toLowerCase();
+  return !job?.assigned_to_id && ['open', 'pending'].includes(status);
 }
 
 function isActionPending(jobId, type) {
@@ -372,7 +409,7 @@ onMounted(async () => {
     <section v-if="showActiveSection" class="section-card space-y-4">
       <header class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-lg font-semibold text-slate-900">
-          {{ isDriver ? 'Your active jobs' : 'Active jobs' }}
+          {{ isDriver ? 'Your active jobs' : isDealer ? 'Your posted jobs' : 'Active jobs' }}
         </h2>
         <RouterLink v-if="isDriver" to="/driver" class="text-xs font-semibold text-emerald-600 hover:underline">
           Driver dashboard
@@ -386,12 +423,12 @@ onMounted(async () => {
       <div v-if="activeLoading" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
         Loading your active jobs...
       </div>
-      <div v-else-if="!activeJobs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+      <div v-else-if="!mainJobs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
         {{ activeEmptyMessage }}
       </div>
       <div v-else class="space-y-4">
         <article
-          v-for="job in activeJobs"
+          v-for="job in mainJobs"
           :key="`active-${job.id}`"
           class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg sm:p-5"
         >
@@ -415,6 +452,9 @@ onMounted(async () => {
                   <span v-else>Awaiting driver assignment</span>
                 </template>
               </p>
+              <p v-if="isDealer" class="mt-2 inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+                Next: {{ dealerNextAction(job) }}
+              </p>
             </div>
             <div class="text-left sm:text-right">
               <div class="text-xl font-black text-slate-950">
@@ -434,13 +474,13 @@ onMounted(async () => {
           <div class="grid gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
-              class="btn-secondary w-full px-3 py-2 text-xs sm:w-auto"
+              class="btn-primary w-full px-3 py-2 text-xs sm:w-auto"
               @click="openJob(job)"
             >
-              View details
+              {{ isDealer ? 'Manage job' : 'View details' }}
             </button>
             <RouterLink
-              v-if="isDealer"
+              v-if="canEditDealerJob(job)"
               :to="`/jobs/${job.id}/edit`"
               class="btn-secondary w-full px-3 py-2 text-xs sm:w-auto"
             >
@@ -470,11 +510,11 @@ onMounted(async () => {
       </div>
     </section>
 
-    <div class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
+    <div v-if="isDriver" class="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
       Looking for historical runs? <RouterLink to="/profile" class="font-semibold text-emerald-600 hover:underline">View completed jobs in your profile</RouterLink>.
     </div>
 
-    <section class="section-card space-y-4">
+    <section v-if="isDriver || isAdmin" class="section-card space-y-4">
       <header class="flex items-center justify-between gap-3" v-if="isDriver">
         <h2 class="text-lg font-semibold text-slate-900">Available jobs</h2>
         <span class="text-xs font-semibold text-slate-500">
@@ -538,10 +578,24 @@ onMounted(async () => {
     </div>
 
     <aside class="section-card h-fit space-y-4 lg:sticky lg:top-24">
-      <h2 class="text-sm font-semibold text-slate-900">Job tips</h2>
+      <h2 class="text-sm font-semibold text-slate-900">
+        {{ isDealer ? 'Dealer workflow' : 'Job tips' }}
+      </h2>
       <p class="text-sm text-slate-600">
-        Keep your pipeline organised: drivers upload delivery proof, then dealers approve completion and download invoices.
+        <template v-if="isDealer">
+          Create a job, choose a driver, take payment, approve proof, then release payout.
+        </template>
+        <template v-else>
+          Keep your pipeline organised: drivers upload delivery proof, then dealers approve completion and download invoices.
+        </template>
       </p>
+      <RouterLink
+        v-if="isDealer"
+        to="/jobs/new"
+        class="btn-primary w-full"
+      >
+        Create job
+      </RouterLink>
       <RouterLink
         to="/profile/completed"
         class="btn-secondary w-full border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -549,6 +603,7 @@ onMounted(async () => {
         View completed jobs
       </RouterLink>
       <RouterLink
+        v-if="auth.hasPlannerAccess"
         to="/planner"
         class="btn-secondary w-full text-xs"
       >

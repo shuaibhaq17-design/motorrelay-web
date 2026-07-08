@@ -164,7 +164,7 @@ class StripePaymentController extends Controller
 
         $session = Session::create([
             'mode' => 'payment',
-            'success_url' => "{$frontendUrl}/jobs/{$job->id}?payment=success",
+            'success_url' => "{$frontendUrl}/jobs/{$job->id}?payment=success&session_id={CHECKOUT_SESSION_ID}",
             'cancel_url' => "{$frontendUrl}/jobs/{$job->id}?payment=cancelled",
             'client_reference_id' => (string) $job->id,
             'customer_email' => $user->email,
@@ -200,6 +200,45 @@ class StripePaymentController extends Controller
         ]);
     }
 
+    public function syncJobPayment(Request $request, Job $job): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user || (!$user->isAdmin() && $job->posted_by_id !== $user->id)) {
+            abort(403, 'Only the dealer that posted this job can check payment.');
+        }
+
+        $sessionId = $request->string('session_id')->toString() ?: $job->stripe_checkout_session_id;
+        if (!$sessionId) {
+            abort(422, 'No Stripe checkout session exists for this job.');
+        }
+
+        $this->configureStripe();
+
+        try {
+            $session = Session::retrieve($sessionId);
+        } catch (ApiErrorException $exception) {
+            return response()->json([
+                'message' => 'Stripe could not check this payment yet. Try again in a moment.',
+                'stripe_error' => $exception->getMessage(),
+            ], 422);
+        }
+
+        $sessionJobId = $session->metadata->job_id ?? $session->client_reference_id ?? null;
+        if ((string) $sessionJobId !== (string) $job->id) {
+            abort(422, 'This Stripe payment does not belong to this job.');
+        }
+
+        if (($session->payment_status ?? null) === 'paid') {
+            $this->handleCheckoutCompleted($session);
+        }
+
+        return response()->json([
+            'payment_status' => $session->payment_status ?? null,
+            'job' => $job->fresh(),
+        ]);
+    }
+
     public function releaseDriverPayout(Request $request, Job $job): JsonResponse
     {
         $user = $request->user();
@@ -212,8 +251,8 @@ class StripePaymentController extends Controller
             abort(422, 'Dealer payment must be completed before releasing payout.');
         }
 
-        if (!$job->delivery_proof_path || !in_array($job->completion_status, ['submitted', 'approved'], true)) {
-            abort(422, 'Delivery proof must be submitted before releasing payout.');
+        if (!$job->delivery_proof_path || $job->completion_status !== 'approved') {
+            abort(422, 'Dealer must approve delivery proof before releasing payout.');
         }
 
         if ($job->stripe_transfer_id) {

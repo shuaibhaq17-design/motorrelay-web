@@ -2,7 +2,6 @@
 import { computed, onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import ProfileScorecard from '@/views/profile/ProfileScorecard.vue';
 
 const auth = useAuthStore();
 
@@ -20,22 +19,27 @@ const postedJobs = computed(() => {
 const openJobs = computed(() =>
   postedJobs.value.filter((job) => {
     const status = String(job?.status ?? '').toLowerCase();
-    return status === 'open' || status === 'pending';
+    return (status === 'open' || status === 'pending') && !job?.assigned_to_id;
   })
 );
 
-const awaitingLive = computed(() =>
+const paymentDueJobs = computed(() =>
   postedJobs.value.filter((job) => {
-    if (!job?.goes_live_at) return false;
-    const date = new Date(job.goes_live_at);
-    return !Number.isNaN(date.getTime()) && date.getTime() > Date.now();
+    return job?.assigned_to_id && !['paid', 'payout_released'].includes(String(job?.payment_status || 'unpaid'));
   })
 );
 
-const scheduledJobs = computed(() =>
+const proofReviewJobs = computed(() =>
   postedJobs.value.filter((job) => {
-    const status = String(job?.status ?? '').toLowerCase();
-    return status === 'in_progress' || status === 'scheduled' || status === 'assigned';
+    return String(job?.completion_status || '').toLowerCase() === 'submitted';
+  })
+);
+
+const payoutReadyJobs = computed(() =>
+  postedJobs.value.filter((job) => {
+    return String(job?.payment_status || '').toLowerCase() === 'paid'
+      && String(job?.completion_status || '').toLowerCase() === 'approved'
+      && !job?.stripe_transfer_id;
   })
 );
 
@@ -62,14 +66,29 @@ const planLabel = computed(() => {
   return auth.plan.name || auth.plan.title || auth.plan.slug || 'MotorRelay plan';
 });
 
-const upcomingJobs = computed(() => {
-  const sorted = [...scheduledJobs.value].sort((a, b) => {
+const activeDealerJobs = computed(() => {
+  const activeStatuses = new Set(['open', 'pending', 'in_progress', 'accepted', 'collected', 'in_transit', 'completion_pending', 'delivered']);
+  const sorted = postedJobs.value
+    .filter((job) => activeStatuses.has(String(job?.status ?? '').toLowerCase()))
+    .sort((a, b) => {
     const aDate = new Date(a?.pickup_at ?? a?.goes_live_at ?? a?.created_at ?? 0).getTime();
     const bDate = new Date(b?.pickup_at ?? b?.goes_live_at ?? b?.created_at ?? 0).getTime();
     return aDate - bDate;
   });
   return sorted.slice(0, 5);
 });
+
+function nextAction(job) {
+  if (!job?.assigned_to_id) return 'Review requests';
+  const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
+  const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
+  if (paymentStatus === 'unpaid') return 'Take payment';
+  if (paymentStatus === 'checkout_pending') return 'Refresh payment';
+  if (completionStatus === 'submitted') return 'Approve proof';
+  if (paymentStatus === 'paid' && completionStatus === 'approved' && !job?.stripe_transfer_id) return 'Release payout';
+  if (paymentStatus === 'payout_released') return 'Paid out';
+  return 'Track job';
+}
 
 const quickLinks = computed(() => [
   {
@@ -160,9 +179,19 @@ function formatDate(value) {
             <p class="mt-1 text-sm text-emerald-800">Runs still waiting for driver applications.</p>
           </div>
           <div class="rounded-3xl border border-sky-100 bg-sky-50 p-5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-sky-700">Scheduled publishing</h2>
-            <p class="mt-3 text-4xl font-black text-sky-950">{{ awaitingLive.length }}</p>
-            <p class="mt-1 text-sm text-sky-800">Jobs still inside their edit window.</p>
+            <h2 class="text-xs font-bold uppercase tracking-wide text-sky-700">Need payment</h2>
+            <p class="mt-3 text-4xl font-black text-sky-950">{{ paymentDueJobs.length }}</p>
+            <p class="mt-1 text-sm text-sky-800">Assigned jobs waiting for dealer payment.</p>
+          </div>
+          <div class="rounded-3xl border border-amber-100 bg-amber-50 p-5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-amber-700">Proof to review</h2>
+            <p class="mt-3 text-4xl font-black text-amber-950">{{ proofReviewJobs.length }}</p>
+            <p class="mt-1 text-sm text-amber-800">Drivers have uploaded delivery proof.</p>
+          </div>
+          <div class="rounded-3xl border border-violet-100 bg-violet-50 p-5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-violet-700">Payout ready</h2>
+            <p class="mt-3 text-4xl font-black text-violet-950">{{ payoutReadyJobs.length }}</p>
+            <p class="mt-1 text-sm text-violet-800">Approved jobs ready to pay drivers.</p>
           </div>
         </div>
       </section>
@@ -197,9 +226,9 @@ function formatDate(value) {
       <section class="section-card">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-black text-slate-950">Upcoming runs</h2>
+            <h2 class="text-lg font-black text-slate-950">Jobs needing attention</h2>
             <p class="mt-1 text-sm text-slate-500">
-              Scheduled jobs and assignments that are in progress or waiting to become visible to drivers.
+              Open and active jobs shown in the same order as the dealer workflow.
             </p>
           </div>
           <RouterLink to="/jobs" class="text-sm font-bold text-emerald-700 hover:text-emerald-800">
@@ -207,13 +236,13 @@ function formatDate(value) {
           </RouterLink>
         </div>
 
-        <div v-if="!upcomingJobs.length" class="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
+        <div v-if="!activeDealerJobs.length" class="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
           You have no scheduled runs right now. Create a job to reserve a driver.
         </div>
 
         <div v-else class="mt-5 space-y-3">
           <article
-            v-for="job in upcomingJobs"
+            v-for="job in activeDealerJobs"
             :key="job.id"
             class="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
           >
@@ -225,7 +254,7 @@ function formatDate(value) {
                 <p class="text-sm text-slate-500">{{ formatRun(job) }}</p>
               </div>
               <span class="badge bg-slate-100 text-slate-700">
-                {{ formatStatus(job) }}
+                {{ nextAction(job) }}
               </span>
             </div>
             <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -247,14 +276,10 @@ function formatDate(value) {
     </div>
 
     <aside class="space-y-4">
-      <div class="tile overflow-hidden p-0">
-        <ProfileScorecard />
-      </div>
-
       <div class="section-card space-y-4">
-        <h2 class="text-sm font-black text-slate-950">Dealer essentials</h2>
+        <h2 class="text-sm font-black text-slate-950">Dealer workflow</h2>
         <p class="text-sm leading-6 text-slate-600">
-          Post runs, message drivers, and finalise paperwork faster with these shortcuts.
+          Create a job, choose a driver, take payment, approve proof, then release payout.
         </p>
         <div class="space-y-3 text-sm text-slate-600">
           <RouterLink to="/jobs/new" class="btn-primary w-full">

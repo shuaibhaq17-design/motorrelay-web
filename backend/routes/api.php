@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/jobs/{job}/invoice/send', [InvoiceController::class, 'sendFromJob']);
     Route::post('/jobs/{job}/payment/checkout', [StripePaymentController::class, 'createJobCheckout']);
+    Route::post('/jobs/{job}/payment/sync', [StripePaymentController::class, 'syncJobPayment']);
     Route::post('/jobs/{job}/payment/release-payout', [StripePaymentController::class, 'releaseDriverPayout']);
     Route::post('/stripe/connect/onboard', [StripePaymentController::class, 'onboardDriver']);
     Route::post('/stripe/connect/disconnect', [StripePaymentController::class, 'disconnectDriver']);

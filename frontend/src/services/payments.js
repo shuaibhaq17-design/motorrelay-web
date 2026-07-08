@@ -15,6 +15,13 @@ export async function createJobCheckout(jobId) {
   return data;
 }
 
+export async function syncJobPayment(jobId, sessionId = null) {
+  const { data } = await api.post(`/jobs/${jobId}/payment/sync`, {
+    session_id: sessionId
+  });
+  return data;
+}
+
 export async function releaseDriverPayout(jobId) {
   const { data } = await api.post(`/jobs/${jobId}/payment/release-payout`);
   return data;
