@@ -395,6 +395,39 @@ const canApproveCompletion = computed(() => {
 const hasDeliveryProof = computed(() => Boolean(job.value?.delivery_proof_path));
 
 const invoiceFinalized = computed(() => Boolean(job.value?.finalized_invoice_id));
+const workflowSteps = computed(() => {
+  if (!job.value) return [];
+  const status = String(job.value.status || '').toLowerCase();
+  const deliveredStatuses = new Set(['delivered', 'completion_pending', 'completed', 'closed']);
+
+  return [
+    {
+      label: 'Job posted',
+      help: 'The dealer created this vehicle movement.',
+      complete: true
+    },
+    {
+      label: 'Driver assigned',
+      help: assignedDriver.value ? `${assignedDriver.value.name} is assigned.` : 'The dealer still needs to choose a driver.',
+      complete: Boolean(job.value.assigned_to_id)
+    },
+    {
+      label: 'Vehicle delivered',
+      help: 'The assigned driver marks the vehicle as delivered.',
+      complete: deliveredStatuses.has(status) || completionStatus.value !== 'not_submitted'
+    },
+    {
+      label: 'Proof uploaded',
+      help: 'The driver uploads delivery proof for dealer review.',
+      complete: hasDeliveryProof.value || ['submitted', 'approved'].includes(completionStatus.value)
+    },
+    {
+      label: 'Approved and invoiced',
+      help: 'The dealer approves completion and the invoice becomes available.',
+      complete: invoiceFinalized.value || completionStatus.value === 'approved'
+    }
+  ];
+});
 const canDealerComplete = computed(() => {
   if (!job.value || !isDealerForJob.value) return false;
   const status = String(job.value.status || '').toLowerCase();
@@ -843,6 +876,33 @@ watch(
         </div>
       </section>
 
+      <section class="tile space-y-4 p-4">
+        <div>
+          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Job progress</h2>
+          <p class="mt-1 text-xs text-slate-500">Shows what has happened and what still needs doing.</p>
+        </div>
+
+        <ol class="grid gap-3 md:grid-cols-5">
+          <li
+            v-for="step in workflowSteps"
+            :key="step.label"
+            class="rounded-2xl border p-3"
+            :class="step.complete ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-slate-50 text-slate-600'"
+          >
+            <div class="flex items-center gap-2">
+              <span
+                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black"
+                :class="step.complete ? 'bg-emerald-600 text-white' : 'bg-white text-slate-500'"
+              >
+                {{ step.complete ? '✓' : '•' }}
+              </span>
+              <h3 class="text-sm font-black">{{ step.label }}</h3>
+            </div>
+            <p class="mt-2 text-xs leading-5">{{ step.help }}</p>
+          </li>
+        </ol>
+      </section>
+
       <section class="tile p-4">
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Status</h2>
 
@@ -1225,7 +1285,7 @@ watch(
               required
               @change="onCompletionProofChange"
             />
-            <p class="mt-1 text-xs text-slate-500">Upload POD images or a signed PDF up to 8 MB.</p>
+            <p class="mt-1 text-xs text-slate-500">Upload delivery proof images or a signed PDF up to 8 MB.</p>
           </div>
           <div class="md:col-span-2 flex justify-end">
             <button

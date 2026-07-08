@@ -23,10 +23,11 @@ const weeks = ref([
 <template>
   <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
     <div class="space-y-4">
-      <header>
+      <header class="section-card space-y-3">
+        <span class="badge bg-amber-100 text-amber-800">Preview feature</span>
         <h1 class="text-2xl font-bold text-slate-900">Planner</h1>
         <p class="text-sm text-slate-600">
-          Organise upcoming runs by week. This view replaces the Supabase-driven planner.
+          This planner shows sample scheduling data. Calendar saving and real capacity holds are not connected yet.
         </p>
       </header>
 

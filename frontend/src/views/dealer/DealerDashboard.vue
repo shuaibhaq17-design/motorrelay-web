@@ -95,7 +95,7 @@ const quickLinks = computed(() => [
   {
     to: '/invoices',
     label: 'Invoices',
-    description: 'Generate paperwork and POD for deliveries',
+    description: 'Download invoices and delivery proof',
     marker: 'PDF'
   }
 ]);
@@ -160,7 +160,7 @@ function formatDate(value) {
             <p class="mt-1 text-sm text-emerald-800">Runs still waiting for driver applications.</p>
           </div>
           <div class="rounded-3xl border border-sky-100 bg-sky-50 p-5">
-            <h2 class="text-xs font-bold uppercase tracking-wide text-sky-700">Awaiting go-live</h2>
+            <h2 class="text-xs font-bold uppercase tracking-wide text-sky-700">Scheduled publishing</h2>
             <p class="mt-3 text-4xl font-black text-sky-950">{{ awaitingLive.length }}</p>
             <p class="mt-1 text-sm text-sky-800">Jobs still inside their edit window.</p>
           </div>
@@ -199,7 +199,7 @@ function formatDate(value) {
           <div>
             <h2 class="text-lg font-black text-slate-950">Upcoming runs</h2>
             <p class="mt-1 text-sm text-slate-500">
-              Scheduled jobs and assignments that are in progress or awaiting go-live.
+              Scheduled jobs and assignments that are in progress or waiting to become visible to drivers.
             </p>
           </div>
           <RouterLink to="/jobs" class="text-sm font-bold text-emerald-700 hover:text-emerald-800">

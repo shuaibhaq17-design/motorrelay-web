@@ -74,6 +74,12 @@ async function submit() {
         </p>
       </header>
 
+      <div class="grid gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-900 lg:hidden">
+        <p class="font-bold">Demo accounts</p>
+        <p><span class="font-semibold">Driver:</span> driver@motorrelay.com / password</p>
+        <p><span class="font-semibold">Dealer:</span> dealer@motorrelay.com / password</p>
+      </div>
+
     <form class="space-y-5" @submit.prevent="submit">
       <div>
         <label class="text-sm font-semibold text-slate-700">Email</label>

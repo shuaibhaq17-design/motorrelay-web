@@ -144,6 +144,50 @@ const isDealer = computed(() => auth.role === 'dealer');
 const isAdmin = computed(() => auth.role === 'admin');
 const showActiveSection = computed(() => isDriver.value || isDealer.value || isAdmin.value);
 const showCompletedSection = computed(() => false);
+const pageIntro = computed(() => {
+  if (isDriver.value) {
+    return {
+      eyebrow: 'Driver jobs',
+      title: 'Find and manage jobs',
+      text: 'Request open runs, wait for dealer assignment, then complete delivery and proof.'
+    };
+  }
+
+  if (isDealer.value) {
+    return {
+      eyebrow: 'Dealer jobs',
+      title: 'Manage posted jobs',
+      text: 'Create jobs, review driver requests, assign runs, and approve completed work.'
+    };
+  }
+
+  return {
+    eyebrow: 'Marketplace',
+    title: 'Jobs',
+    text: 'Review, request, assign, and complete MotorRelay runs.'
+  };
+});
+const processSteps = computed(() => {
+  if (isDriver.value) {
+    return ['Request job', 'Dealer assigns driver', 'Deliver vehicle', 'Upload delivery proof'];
+  }
+
+  if (isDealer.value) {
+    return ['Create job', 'Review requests', 'Assign driver', 'Approve completion'];
+  }
+
+  return ['Create or request', 'Assign driver', 'Track delivery', 'Close paperwork'];
+});
+const activeEmptyMessage = computed(() => {
+  if (isDriver.value) return 'No assigned jobs yet. Browse available jobs below and request one when you are ready.';
+  if (isDealer.value) return 'No active dealer jobs yet. Create a job or assign a driver to start.';
+  return 'No active jobs right now.';
+});
+const availableEmptyMessage = computed(() => {
+  if (isDriver.value) return 'No open jobs right now. Check back later or ask a dealer to post a run.';
+  if (isDealer.value) return 'No open jobs visible. Create a job to start receiving driver requests.';
+  return 'No jobs here yet.';
+});
 
 function hasApplied(jobId) {
   return appliedJobIds.value.has(jobId);
@@ -249,9 +293,9 @@ onMounted(async () => {
     <div class="space-y-4">
     <div class="section-card flex flex-col justify-between gap-4 md:flex-row md:items-center">
       <div>
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Marketplace</p>
-        <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Jobs</h1>
-        <p class="mt-1 text-sm text-slate-600">Review, request, assign, and complete MotorRelay runs.</p>
+        <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">{{ pageIntro.eyebrow }}</p>
+        <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{{ pageIntro.title }}</h1>
+        <p class="mt-1 text-sm text-slate-600">{{ pageIntro.text }}</p>
       </div>
 
       <div class="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
@@ -274,6 +318,24 @@ onMounted(async () => {
     </div>
 
     <p v-if="errorMessage" class="text-sm text-amber-600">{{ errorMessage }}</p>
+
+    <section class="section-card">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-900">Simple workflow</h2>
+          <p class="text-sm text-slate-600">These are the main steps for your role.</p>
+        </div>
+        <ol class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <li
+            v-for="step in processSteps"
+            :key="step"
+            class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700"
+          >
+            {{ step }}
+          </li>
+        </ol>
+      </div>
+    </section>
 
     <section
       v-if="auth.hasPlannerAccess"
@@ -325,7 +387,7 @@ onMounted(async () => {
         Loading your active jobs...
       </div>
       <div v-else-if="!activeJobs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        You have no active jobs right now.
+        {{ activeEmptyMessage }}
       </div>
       <div v-else class="space-y-4">
         <article
@@ -366,7 +428,7 @@ onMounted(async () => {
             v-if="isDealer && jobIsAwaitingLive(job)"
             class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700"
           >
-            Goes live at {{ formatGoLive(job) }}. You can still edit this job if needed.
+            Visible to drivers at {{ formatGoLive(job) }}. You can still edit this job if needed.
           </p>
 
           <div class="grid gap-2 sm:flex sm:flex-wrap">
@@ -425,7 +487,7 @@ onMounted(async () => {
       </div>
 
       <div v-else-if="!visibleJobs.length" class="rounded-2xl border bg-white p-4 text-sm text-slate-600">
-        No jobs here yet.
+        {{ availableEmptyMessage }}
       </div>
 
       <div v-else class="space-y-4">
@@ -478,7 +540,7 @@ onMounted(async () => {
     <aside class="section-card h-fit space-y-4 lg:sticky lg:top-24">
       <h2 class="text-sm font-semibold text-slate-900">Job tips</h2>
       <p class="text-sm text-slate-600">
-        Keep your pipeline organised: move delivered runs to invoices immediately and reserve capacity in the planner.
+        Keep your pipeline organised: drivers upload delivery proof, then dealers approve completion and download invoices.
       </p>
       <RouterLink
         to="/profile/completed"

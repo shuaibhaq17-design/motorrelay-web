@@ -21,6 +21,12 @@ function formatCurrency(value, currencyCode = 'GBP') {
   }
 }
 
+function invoiceStatusLabel(status) {
+  if (status === 'finalized') return 'Ready';
+  if (status === 'draft') return 'Draft';
+  return status || 'Draft';
+}
+
 async function loadInvoices() {
   if (!auth.token) {
     errorMessage.value = 'Log in to view invoices.';
@@ -140,7 +146,7 @@ onMounted(async () => {
                     'bg-slate-200 text-slate-700': !invoice.status
                   }"
                 >
-                  {{ invoice.status || 'draft' }}
+                  {{ invoiceStatusLabel(invoice.status) }}
                 </span>
               </td>
               <td class="px-4 py-3">
@@ -151,10 +157,12 @@ onMounted(async () => {
                   type="button"
                   class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   :disabled="!invoice.pdf_available || downloadingId === invoice.id"
+                  :title="invoice.pdf_available ? 'Download invoice PDF' : 'PDF has not been generated for this invoice yet'"
                   @click="handleDownload(invoice)"
                 >
                   <span v-if="downloadingId === invoice.id">Downloading...</span>
-                  <span v-else>Download PDF</span>
+                  <span v-else-if="invoice.pdf_available">Download PDF</span>
+                  <span v-else>PDF not ready</span>
                 </button>
               </td>
             </tr>
@@ -185,7 +193,7 @@ onMounted(async () => {
                 'bg-slate-200 text-slate-700': !invoice.status
               }"
             >
-              {{ invoice.status || 'draft' }}
+              {{ invoiceStatusLabel(invoice.status) }}
             </span>
           </header>
 
@@ -220,10 +228,12 @@ onMounted(async () => {
             type="button"
             class="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             :disabled="!invoice.pdf_available || downloadingId === invoice.id"
+            :title="invoice.pdf_available ? 'Download invoice PDF' : 'PDF has not been generated for this invoice yet'"
             @click="handleDownload(invoice)"
           >
             <span v-if="downloadingId === invoice.id">Downloading...</span>
-            <span v-else>Download PDF</span>
+            <span v-else-if="invoice.pdf_available">Download PDF</span>
+            <span v-else>PDF not ready</span>
           </button>
         </article>
       </div>

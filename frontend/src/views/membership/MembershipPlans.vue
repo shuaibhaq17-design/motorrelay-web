@@ -72,6 +72,10 @@ const plans = [
       <p class="text-sm text-slate-600">Choose a plan that matches your MotorRelay workflow.</p>
     </header>
 
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      Plan selection is a preview. Payments and automatic plan changes are not connected yet.
+    </div>
+
     <div class="grid gap-4 md:grid-cols-3">
       <article
         v-for="plan in plans"
@@ -115,9 +119,10 @@ const plans = [
 
         <button
           type="button"
-          class="mt-auto rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          class="mt-auto cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500"
+          disabled
         >
-          Select
+          Coming soon
         </button>
       </article>
     </div>
