@@ -101,13 +101,18 @@ function normaliseRegistration(value) {
 async function lookupVehicle() {
   const registration = normaliseRegistration(form.title);
   vehicleLookupError.value = '';
-  verifiedVehicle.value = null;
-  form.vehicle_make = '';
 
   if (!registration) {
     vehicleLookupError.value = 'Enter a registration plate first.';
     return;
   }
+
+  if (verifiedVehicle.value?.registration === registration) {
+    return;
+  }
+
+  verifiedVehicle.value = null;
+  form.vehicle_make = '';
 
   form.title = registration;
   vehicleLookupLoading.value = true;
@@ -132,6 +137,15 @@ async function lookupVehicle() {
 
 function selectTransport(value) {
   form.transport_type = value;
+}
+
+function changeVehicle() {
+  if (isEdit.value || vehicleLookupLoading.value) return;
+
+  verifiedVehicle.value = null;
+  vehicleLookupError.value = '';
+  form.title = '';
+  form.vehicle_make = '';
 }
 
 watch(
@@ -429,14 +443,15 @@ watch(
                 type="text"
                 required
                 placeholder="e.g. AB12 CDE"
-                :readonly="isEdit"
-                @blur="!isEdit && lookupVehicle()"
+                :readonly="isEdit || Boolean(verifiedVehicle)"
+                @blur="!isEdit && !verifiedVehicle && lookupVehicle()"
                 class="mt-2 w-full rounded-2xl border px-4 py-3 text-sm"
+                :class="verifiedVehicle ? 'bg-slate-100 font-black text-slate-700' : ''"
               />
             </label>
 
             <button
-              v-if="!isEdit"
+              v-if="!isEdit && !verifiedVehicle"
               type="button"
               class="btn-secondary w-full md:w-auto"
               :disabled="vehicleLookupLoading || !form.title"
@@ -444,6 +459,15 @@ watch(
             >
               <span v-if="vehicleLookupLoading">Checking...</span>
               <span v-else>Check plate</span>
+            </button>
+            <button
+              v-else-if="!isEdit"
+              type="button"
+              class="btn-secondary w-full md:w-auto"
+              :disabled="vehicleLookupLoading"
+              @click="changeVehicle"
+            >
+              Change plate
             </button>
           </div>
 
