@@ -1,25 +1,27 @@
 <template>
-  <div class="flex min-h-screen flex-col bg-slate-100">
-    <header class="bg-white/90 backdrop-blur shadow-sm">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+  <div class="flex min-h-screen flex-col text-slate-900">
+    <header class="sticky top-0 z-50 border-b border-white/70 bg-white/75 backdrop-blur-xl">
+      <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <div class="flex items-center gap-3">
           <div v-if="showBackButton" class="md:hidden">
             <BackButton />
           </div>
-          <RouterLink to="/" class="flex items-center gap-3">
-            <img
-              src="@/assets/logo-icon.svg"
-              alt="MotorRelay logo"
-              class="h-12 w-12 rounded-xl shadow-sm"
-            />
+          <RouterLink to="/" class="group flex items-center gap-3">
+            <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 shadow-lg shadow-slate-950/15 ring-1 ring-white/40 transition group-hover:-translate-y-0.5">
+              <img
+                src="@/assets/logo-icon.svg"
+                alt="MotorRelay logo"
+                class="h-8 w-8"
+              />
+            </span>
             <div class="flex flex-col leading-tight text-slate-900">
-              <span class="font-extrabold tracking-wide uppercase">MotorRelay</span>
-              <span class="text-xs font-semibold text-emerald-700 uppercase">Move Smarter</span>
+              <span class="text-base font-black tracking-tight">MotorRelay</span>
+              <span class="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-600">Move Smarter</span>
             </div>
           </RouterLink>
         </div>
 
-        <div class="hidden items-center gap-4 text-sm font-semibold text-slate-600 md:flex">
+        <div class="hidden items-center gap-1 rounded-2xl border border-slate-200/80 bg-white/70 p-1 text-sm font-semibold text-slate-600 shadow-sm md:flex">
           <RouterLink
             v-for="item in visibleNavLinks"
             :key="item.to"
@@ -36,14 +38,14 @@
         <RouterLink
           v-if="showLogin"
           to="/login"
-          class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          class="btn-primary"
         >
           Login
         </RouterLink>
         <button
           v-else
           type="button"
-          class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          class="btn-secondary"
           @click="handleLogout"
         >
           Logout
@@ -52,19 +54,19 @@
     </header>
 
     <main :class="mainContainerClass">
-      <nav v-if="breadcrumbs.length" class="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+      <nav v-if="breadcrumbs.length" class="mb-5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
         <template v-for="(crumb, index) in breadcrumbs" :key="crumb.href ?? index">
           <RouterLink
             v-if="index !== breadcrumbs.length - 1 && crumb.href"
             :to="crumb.href"
-            class="text-emerald-600 hover:underline"
+            class="font-semibold text-emerald-700 hover:text-emerald-800"
           >
             {{ crumb.label }}
           </RouterLink>
           <span v-else class="font-medium text-slate-700">
             {{ crumb.label }}
           </span>
-          <span v-if="index !== breadcrumbs.length - 1" aria-hidden="true">/</span>
+          <span v-if="index !== breadcrumbs.length - 1" aria-hidden="true" class="text-slate-300">/</span>
         </template>
       </nav>
       <RouterView />
@@ -84,7 +86,7 @@ import BackButton from '@/components/BackButton.vue';
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
-const baseMainClasses = 'mx-auto flex-1 max-w-7xl px-4 pb-24 pt-8 sm:px-6 sm:pb-8 lg:px-8';
+const baseMainClasses = 'mx-auto w-full flex-1 max-w-7xl px-4 pb-24 pt-7 sm:px-6 sm:pb-10 lg:px-8';
 
 const navLinks = [
   { to: '/', label: 'Home', exact: true, icon: 'home', showInBottomNav: true },
@@ -137,8 +139,8 @@ const bottomNavItems = computed(() => {
 });
 
 const baseLinkClass = 'rounded-xl px-3 py-2 transition';
-const activeLinkClass = 'bg-emerald-500 text-white shadow-sm';
-const inactiveLinkClass = 'hover:bg-emerald-50 hover:text-emerald-700';
+const activeLinkClass = 'bg-slate-950 text-white shadow-sm';
+const inactiveLinkClass = 'hover:bg-slate-100 hover:text-slate-950';
 
 function isNavActive(item) {
   if (item.exact) {

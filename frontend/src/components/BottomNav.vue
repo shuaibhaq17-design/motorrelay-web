@@ -22,17 +22,17 @@ function isActive(item) {
 <template>
   <nav
     v-if="items.length"
-    class="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 shadow-lg backdrop-blur md:hidden"
+    class="fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 md:hidden"
     role="navigation"
     aria-label="Primary navigation"
   >
-    <div class="mx-auto flex max-w-6xl items-stretch justify-around px-2 py-2">
+    <div class="mx-auto flex max-w-lg items-stretch justify-around rounded-3xl border border-white/70 bg-white/90 px-2 py-2 shadow-2xl shadow-slate-950/15 ring-1 ring-slate-900/5 backdrop-blur-xl">
       <RouterLink
         v-for="item in items"
         :key="item.to"
         :to="item.to"
-        class="flex flex-1 flex-col items-center gap-1 rounded-xl px-2 py-1 text-xs font-semibold transition"
-        :class="isActive(item) ? 'text-emerald-600' : 'text-slate-500 hover:text-emerald-600'"
+        class="flex flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-bold transition"
+        :class="isActive(item) ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/20' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950'"
       >
         <svg
           v-if="item.icon === 'home'"
