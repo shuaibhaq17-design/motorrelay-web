@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/services/api';
+import { createJobCheckout } from '@/services/payments';
 import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps({
@@ -194,9 +195,13 @@ async function submit() {
       await auth.fetchMe().catch(() => null);
       router.push({ name: 'job-detail', params: { id: jobId.value } });
     } else {
-      await api.post('/jobs', payload);
+      const { data: createdJob } = await api.post('/jobs', payload);
       await auth.fetchMe().catch(() => null);
-      router.push({ name: 'jobs' });
+      const checkout = await createJobCheckout(createdJob.id);
+      if (!checkout?.url) {
+        throw new Error('Job was created, but Stripe did not return a checkout link.');
+      }
+      window.location.href = checkout.url;
     }
   } catch (error) {
     console.error('Failed to create job', error);
@@ -306,7 +311,7 @@ watch(
             {{ isEdit ? 'Edit job' : 'Create a new job' }}
           </h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Add the vehicle, route, driver payout, and timing in one clean workflow.
+            Add the vehicle, route, driver payout, and timing. New jobs go to Stripe checkout before drivers can start.
           </p>
         </div>
         <div class="rounded-3xl bg-slate-950 px-5 py-4 text-white shadow-xl">
@@ -567,8 +572,8 @@ watch(
             class="btn-primary w-full px-5 py-3"
             :disabled="submitting || (requiresUrgentAcknowledgement && !form.urgent_fee_ack)"
           >
-            <span v-if="submitting">{{ isEdit ? 'Saving...' : 'Creating...' }}</span>
-            <span v-else>{{ isEdit ? 'Save changes' : 'Create job' }}</span>
+            <span v-if="submitting">{{ isEdit ? 'Saving...' : 'Opening checkout...' }}</span>
+            <span v-else>{{ isEdit ? 'Save changes' : 'Create and pay' }}</span>
           </button>
         </section>
       </aside>

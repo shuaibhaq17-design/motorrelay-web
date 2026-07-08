@@ -144,10 +144,6 @@ class StripePaymentController extends Controller
             abort(403, 'Only the dealer that posted this job can take payment.');
         }
 
-        if (!$job->assigned_to_id) {
-            abort(422, 'Assign a driver before taking payment.');
-        }
-
         if (in_array($job->payment_status, ['paid', 'payout_released'], true)) {
             abort(422, 'This job has already been paid.');
         }
@@ -172,7 +168,7 @@ class StripePaymentController extends Controller
             'metadata' => [
                 'job_id' => (string) $job->id,
                 'dealer_id' => (string) $user->id,
-                'driver_id' => (string) $job->assigned_to_id,
+                'driver_id' => $job->assigned_to_id ? (string) $job->assigned_to_id : '',
             ],
             'line_items' => [[
                 'price_data' => [

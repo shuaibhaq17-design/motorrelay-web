@@ -507,14 +507,14 @@ const workflowSteps = computed(() => {
       complete: true
     },
     {
-      label: 'Driver assigned',
-      help: assignedDriver.value ? `${assignedDriver.value.name} is assigned.` : 'The dealer still needs to choose a driver.',
-      complete: isAssigned
-    },
-    {
       label: 'Dealer payment held',
       help: 'The dealer pays MotorRelay before payout can be released.',
       complete: paymentComplete
+    },
+    {
+      label: 'Driver assigned',
+      help: assignedDriver.value ? `${assignedDriver.value.name} is assigned.` : 'The dealer still needs to choose a driver.',
+      complete: isAssigned
     },
     {
       label: 'Vehicle delivered',
@@ -548,7 +548,7 @@ const currentWorkflowStep = computed(() => {
   return workflowSteps.value.find((step) => !step.complete) ?? workflowSteps.value[workflowSteps.value.length - 1] ?? null;
 });
 const paymentStatus = computed(() => job.value?.payment_status || 'unpaid');
-const canManagePayment = computed(() => Boolean(job.value?.assigned_to_id) && (isDealerForJob.value || currentRole.value === 'admin'));
+const canManagePayment = computed(() => Boolean(job.value) && (isDealerForJob.value || currentRole.value === 'admin'));
 const jobBasePrice = computed(() => Number(job.value?.price || 0));
 const urgentFeeAmount = computed(() => Number(job.value?.urgent_fee_amount || 0));
 const estimatedPlatformFee = computed(() => Math.round(jobBasePrice.value * 0.1 * 100) / 100);
@@ -565,7 +565,6 @@ const headerDisplayAmount = computed(() => (currentRole.value === 'driver' ? dri
 const headerDisplayLabel = computed(() => (currentRole.value === 'driver' ? 'Driver payout' : 'Job value'));
 const canStartCheckout = computed(() => {
   if (!job.value || !(isDealerForJob.value || currentRole.value === 'admin')) return false;
-  if (!job.value.assigned_to_id) return false;
   return !['checkout_pending', 'paid', 'payout_released'].includes(paymentStatus.value);
 });
 const canReleasePayout = computed(() => {
@@ -575,13 +574,12 @@ const canReleasePayout = computed(() => {
   return completionStatus.value === 'approved' && !job.value.stripe_transfer_id;
 });
 const paymentActionHelp = computed(() => {
-  if (!job.value?.assigned_to_id) return 'Assign a driver first, then take payment.';
-  if (paymentStatus.value === 'unpaid') return 'Take dealer payment before the driver starts or before completion.';
+  if (paymentStatus.value === 'unpaid') return 'Take dealer payment now so this job is funded before drivers start.';
   if (paymentStatus.value === 'checkout_pending') return 'Checkout has started. If the dealer paid, use refresh or wait for Stripe to confirm.';
   if (paymentStatus.value === 'paid' && completionStatus.value !== 'approved') return 'Payment is held. Payout unlocks only after delivery proof is approved.';
   if (paymentStatus.value === 'paid' && completionStatus.value === 'approved') return 'Delivery is approved. You can now release the driver payout.';
   if (paymentStatus.value === 'payout_released') return 'Driver payout has been released.';
-  return 'Assign a driver, take payment, approve proof, then release payout.';
+  return 'Take payment, choose a driver, approve proof, then release payout.';
 });
 
 const myApplication = computed(() => job.value?.my_application ?? null);
@@ -1237,13 +1235,53 @@ watch(
           </div>
       </section>
 
+      <section class="tile space-y-4 p-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Job progress</h2>
+            <p class="mt-1 text-xs text-slate-500">
+              Next: {{ currentWorkflowStep?.label || 'Complete' }}
+            </p>
+          </div>
+          <span class="badge bg-emerald-100 text-emerald-700">
+            {{ completedWorkflowCount }} / {{ workflowSteps.length }} done
+          </span>
+        </div>
+
+        <div class="relative pt-1">
+          <div class="h-3 overflow-hidden rounded-full bg-slate-100">
+            <div
+              class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-sky-500 transition-all duration-500"
+              :style="{ width: `${workflowProgressPercent}%` }"
+            ></div>
+          </div>
+        </div>
+
+        <ol class="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <li
+            v-for="step in workflowSteps"
+            :key="`compact-${step.label}`"
+            class="flex items-center gap-2 rounded-xl px-2 py-1.5"
+            :class="step.complete ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-50 text-slate-500'"
+          >
+            <span
+              class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black"
+              :class="step.complete ? 'bg-emerald-600 text-white' : 'bg-white text-slate-400 ring-1 ring-slate-200'"
+            >
+              {{ step.complete ? '✓' : '•' }}
+            </span>
+            <span class="font-bold">{{ step.label }}</span>
+          </li>
+        </ol>
+      </section>
+
       <section v-if="showApplicationsAtTop" class="tile space-y-4 border-emerald-200 bg-emerald-50/40 p-4">
         <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Next step</p>
             <h2 class="mt-1 text-lg font-black text-slate-950">Choose a driver</h2>
             <p class="text-sm text-slate-600">
-              Review applications and assign one driver before taking payment.
+              Payment is taken upfront. Review applications and assign one driver after funding is confirmed.
             </p>
           </div>
           <span class="badge bg-white text-slate-800">{{ applications.length }} total</span>
@@ -1349,7 +1387,7 @@ watch(
 
         <p class="text-xs text-slate-500">
           <span v-if="job.paid_at">Paid {{ formatDateTime(job.paid_at) }}.</span>
-          <span v-else>Not paid yet. Payment is taken after the dealer assigns a driver.</span>
+          <span v-else>Not paid yet. Payment should be completed before a driver starts.</span>
         </p>
 
         <p v-if="paymentError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
@@ -1398,7 +1436,7 @@ watch(
         </div>
       </section>
 
-      <section class="tile space-y-4 p-4">
+      <section v-if="false" class="tile space-y-4 p-4">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
           <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Job progress</h2>
@@ -1522,7 +1560,7 @@ watch(
           v-if="(isDealerForJob || currentRole === 'admin') && !job.assigned_to_id"
           class="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700"
         >
-          Payment unlocks after you accept and assign a driver. Review applications below first.
+          Payment should be completed before the driver starts. Review applications below after funding is confirmed.
         </p>
 
       </section>
@@ -1558,7 +1596,7 @@ watch(
 
         <p class="text-xs text-slate-500">
           <span v-if="job.paid_at">Paid {{ formatDateTime(job.paid_at) }}.</span>
-          <span v-else>Not paid yet. Payment is taken after the dealer assigns a driver.</span>
+          <span v-else>Not paid yet. Payment should be completed before a driver starts.</span>
         </p>
 
         <p v-if="paymentError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">

@@ -178,7 +178,7 @@ const mainJobs = computed(() => {
 const dealerStats = computed(() => ({
   total: dealerPipelineJobs.value.length,
   awaitingDriver: dealerPipelineJobs.value.filter((job) => !job?.assigned_to_id).length,
-  needsPayment: dealerPipelineJobs.value.filter((job) => job?.assigned_to_id && !['paid', 'payout_released'].includes(String(job?.payment_status || 'unpaid').toLowerCase())).length,
+  needsPayment: dealerPipelineJobs.value.filter((job) => !['paid', 'payout_released'].includes(String(job?.payment_status || 'unpaid').toLowerCase())).length,
   proofReview: dealerPipelineJobs.value.filter((job) => String(job?.completion_status || 'not_submitted').toLowerCase() === 'submitted').length,
   payoutReady: dealerPipelineJobs.value.filter((job) => {
     const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
@@ -199,7 +199,7 @@ const pageIntro = computed(() => {
     return {
       eyebrow: 'Dealer jobs',
       title: 'Jobs command centre',
-      text: 'Post jobs, choose drivers, collect payment, approve proof, and release payout.'
+      text: 'Post jobs, pay upfront, choose drivers, approve proof, and release payout.'
     };
   }
 
@@ -215,7 +215,7 @@ const processSteps = computed(() => {
   }
 
   if (isDealer.value) {
-    return ['Post job', 'Choose driver', 'Take payment', 'Approve proof', 'Release payout'];
+    return ['Post job', 'Pay upfront', 'Choose driver', 'Approve proof', 'Release payout'];
   }
 
   return ['Create or request', 'Assign driver', 'Track delivery', 'Close paperwork'];
@@ -240,9 +240,9 @@ function dealerNextAction(job) {
   const paymentStatus = String(job?.payment_status || 'unpaid').toLowerCase();
   const completionStatus = String(job?.completion_status || 'not_submitted').toLowerCase();
 
-  if (!job?.assigned_to_id) return 'Review driver requests';
   if (paymentStatus === 'unpaid') return 'Take payment';
   if (paymentStatus === 'checkout_pending') return 'Refresh payment';
+  if (!job?.assigned_to_id) return 'Review driver requests';
   if (completionStatus === 'submitted') return 'Approve delivery proof';
   if (paymentStatus === 'paid' && completionStatus === 'approved' && !job?.stripe_transfer_id) return 'Release driver payout';
   if (paymentStatus === 'payout_released') return 'Paid out';
@@ -261,6 +261,7 @@ function dealerCurrentStage(job) {
   if (['delivered', 'completion_pending'].includes(status)) return 'Delivered';
   if (paymentStatus === 'paid') return 'Payment held';
   if (paymentStatus === 'checkout_pending') return 'Payment pending';
+  if (!['paid', 'payout_released'].includes(paymentStatus)) return 'Awaiting payment';
   if (job?.assigned_to_id) return 'Driver assigned';
   return 'Open for requests';
 }
@@ -272,9 +273,9 @@ function dealerMovingTo(job) {
   if (paymentStatus === 'payout_released') return 'Complete';
   if (completionStatus === 'approved') return job?.stripe_transfer_id ? 'Complete' : 'Release payout';
   if (completionStatus === 'submitted') return 'Approve proof';
-  if (!job?.assigned_to_id) return 'Choose driver';
   if (paymentStatus === 'unpaid') return 'Take payment';
   if (paymentStatus === 'checkout_pending') return 'Confirm payment';
+  if (!job?.assigned_to_id) return 'Choose driver';
   return 'Delivery proof';
 }
 

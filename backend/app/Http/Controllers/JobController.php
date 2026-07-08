@@ -16,6 +16,7 @@ class JobController extends Controller
     {
         $jobs = Job::query()
             ->where('status', 'open')
+            ->where('payment_status', 'paid')
             ->where(function ($builder) {
                 $builder
                     ->whereNull('goes_live_at')
@@ -54,6 +55,9 @@ class JobController extends Controller
 
         if ($scope === 'available') {
             $query->where('status', 'open')->whereNull('assigned_to_id');
+            if ($user?->isDriver()) {
+                $query->where('payment_status', 'paid');
+            }
         } elseif ($scope === 'current') {
             $query->whereIn('status', ['in_progress', 'accepted', 'collected', 'in_transit', 'pending', 'completion_pending'])
                 ->when(!$user?->isAdmin(), function ($inner) use ($user) {
